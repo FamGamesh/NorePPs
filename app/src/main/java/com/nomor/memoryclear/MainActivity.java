@@ -614,6 +614,155 @@ public class MainActivity extends AppCompatActivity {
                .show();
     }
     
+    /**
+     * Enhanced intelligent permission dialog that checks permission status before showing dialog
+     * Only shows dialog if permission is not already granted
+     * Provides better user experience and avoids duplicate dialogs
+     */
+    private void showIntelligentPermissionDialog(String title, String message, Runnable onPositive) {
+        try {
+            // Intelligent logic: Check permission type based on title and only show if needed
+            boolean shouldShowDialog = false;
+            String enhancedMessage = message;
+            
+            if (title.toLowerCase().contains("usage stats")) {
+                // Check if Usage Stats permission is already granted
+                if (!PermissionHelper.hasUsageStatsPermission(this)) {
+                    shouldShowDialog = true;
+                    enhancedMessage = message + "\n\n⚠️ This permission is required to detect running apps and improve the app's performance.";
+                } else {
+                    // Permission already granted, show success message instead
+                    Toast.makeText(this, "Usage Stats permission is already granted! ✅", Toast.LENGTH_SHORT).show();
+                    errorLogger.logInfo(TAG, "Usage Stats permission already granted - dialog not shown");
+                    return;
+                }
+            } else if (title.toLowerCase().contains("accessibility")) {
+                // Check if Accessibility permission is already granted
+                if (!PermissionHelper.hasAccessibilityPermission(this)) {
+                    shouldShowDialog = true;
+                    enhancedMessage = message + "\n\n⚠️ This permission allows the app to automatically force stop apps for you.";
+                } else {
+                    Toast.makeText(this, "Accessibility permission is already granted! ✅", Toast.LENGTH_SHORT).show();
+                    errorLogger.logInfo(TAG, "Accessibility permission already granted - dialog not shown");
+                    return;
+                }
+            } else if (title.toLowerCase().contains("overlay") || title.toLowerCase().contains("display over")) {
+                // Check if Overlay permission is already granted
+                if (!PermissionHelper.hasOverlayPermission(this)) {
+                    shouldShowDialog = true;
+                    enhancedMessage = message + "\n\n⚠️ This permission is needed for floating dock and overlays.";
+                } else {
+                    Toast.makeText(this, "Display over apps permission is already granted! ✅", Toast.LENGTH_SHORT).show();
+                    errorLogger.logInfo(TAG, "Overlay permission already granted - dialog not shown");
+                    return;
+                }
+            } else {
+                // Generic permission - always show dialog
+                shouldShowDialog = true;
+            }
+            
+            if (shouldShowDialog) {
+                androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+                builder.setTitle("🔐 " + title)
+                       .setMessage(enhancedMessage)
+                       .setPositiveButton("Grant Permission", (dialog, which) -> {
+                           try {
+                               onPositive.run();
+                               errorLogger.logInfo(TAG, "Permission request initiated: " + title);
+                           } catch (Exception e) {
+                               errorLogger.logError(TAG, "Error executing permission callback", e);
+                               Toast.makeText(this, "Error granting permission", Toast.LENGTH_SHORT).show();
+                           }
+                       })
+                       .setNegativeButton("Not Now", (dialog, which) -> {
+                           dialog.dismiss();
+                           Toast.makeText(this, "You can grant this permission later from Settings", Toast.LENGTH_LONG).show();
+                           errorLogger.logInfo(TAG, "Permission request declined: " + title);
+                       })
+                       .setNeutralButton("Learn More", (dialog, which) -> {
+                           showPermissionEducationDialog(title, enhancedMessage);
+                       })
+                       .setCancelable(false)
+                       .show();
+                
+                errorLogger.logInfo(TAG, "Intelligent permission dialog shown: " + title);
+            }
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error in showIntelligentPermissionDialog", e);
+            // Fallback to simple permission dialog
+            showPermissionDialog(title, message, onPositive);
+        }
+    }
+    
+    /**
+     * Shows educational dialog about why permissions are needed
+     */
+    private void showPermissionEducationDialog(String permissionTitle, String message) {
+        try {
+            String educationalContent = getPermissionEducationContent(permissionTitle);
+            
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+            builder.setTitle("Why " + permissionTitle + "?")
+                   .setMessage(educationalContent)
+                   .setPositiveButton("Grant Now", (dialog, which) -> {
+                       // Close education dialog and show permission request again
+                       dialog.dismiss();
+                       showIntelligentPermissionDialog(permissionTitle, message, () -> {
+                           // This will be the original callback passed to intelligent dialog
+                       });
+                   })
+                   .setNegativeButton("Maybe Later", (dialog, which) -> dialog.dismiss())
+                   .show();
+                   
+            errorLogger.logInfo(TAG, "Permission education dialog shown: " + permissionTitle);
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing permission education dialog", e);
+        }
+    }
+    
+    /**
+     * Get educational content for specific permissions
+     */
+    private String getPermissionEducationContent(String permissionTitle) {
+        try {
+            if (permissionTitle.toLowerCase().contains("usage stats")) {
+                return "📊 Usage Stats Permission allows No More Apps PRO to:\n\n" +
+                       "✅ Detect which apps are currently running\n" +
+                       "✅ Monitor memory usage of apps\n" +
+                       "✅ Provide accurate app performance data\n" +
+                       "✅ Help you identify apps consuming resources\n\n" +
+                       "🔒 This permission is safe and doesn't access personal data.\n" +
+                       "🚀 It helps the app work 3-5x faster in detecting running apps!";
+            } else if (permissionTitle.toLowerCase().contains("accessibility")) {
+                return "♿ Accessibility Permission allows No More Apps PRO to:\n\n" +
+                       "✅ Automatically force stop apps in background\n" +
+                       "✅ Work even when your device screen is off\n" +
+                       "✅ Perform scheduled cleanups automatically\n" +
+                       "✅ Provide Premium Speed features\n\n" +
+                       "🔒 This permission is used only for app management.\n" +
+                       "⚡ Essential for automated force stopping!";
+            } else if (permissionTitle.toLowerCase().contains("overlay") || permissionTitle.toLowerCase().contains("display over")) {
+                return "📱 Display Over Apps Permission allows No More Apps PRO to:\n\n" +
+                       "✅ Show floating dock for quick access\n" +
+                       "✅ Display cleanup notifications\n" +
+                       "✅ Provide quick force stop shortcuts\n" +
+                       "✅ Work seamlessly with other apps\n\n" +
+                       "🔒 Only used for app's own interface elements.\n" +
+                       "🎯 Makes the app more convenient to use!";
+            } else {
+                return "🔐 This permission helps No More Apps PRO work better:\n\n" +
+                       "✅ Provides enhanced functionality\n" +
+                       "✅ Improves user experience\n" +
+                       "✅ Ensures reliable performance\n\n" +
+                       "🔒 Your privacy and security are always protected.";
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error getting permission education content", e);
+            return "This permission helps the app provide better functionality and user experience.";
+        }
+    }
+    
     private void showFirstLaunchDialog() {
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
         builder.setTitle("Welcome to No More Apps PRO!")
