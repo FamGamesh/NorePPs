@@ -248,7 +248,6 @@ public class MainActivity extends AppCompatActivity {
             errorLogger.logError(TAG, "Error initializing views", e);
         }
     }
-    }
     
     private void setupAnimatedCircle() {
         try {
