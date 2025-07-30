@@ -23,7 +23,7 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView titleText;
     private LinearLayout settingsContainer;
     private LinearLayout moreContainer;
-    private LinearLayout brandingLayout;
+    private CardView brandingLayout;  // Changed from LinearLayout to CardView
     
     private Switch scheduleSwitch;
     private TextView scheduleTimeText;
@@ -332,140 +332,267 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     private void loadSettings() {
-        scheduleSwitch.setChecked(AppPreferences.isScheduleEnabled());
-        dockSwitch.setChecked(AppPreferences.isDockEnabled());
-        
-        updateScheduleUI();
-        updateDockUI();
+        try {
+            if (scheduleSwitch != null) {
+                scheduleSwitch.setChecked(AppPreferences.isScheduleEnabled());
+            } else {
+                errorLogger.logWarning(TAG, "Schedule switch is null in loadSettings");
+            }
+            
+            if (dockSwitch != null) {
+                dockSwitch.setChecked(AppPreferences.isDockEnabled());
+            } else {
+                errorLogger.logWarning(TAG, "Dock switch is null in loadSettings");
+            }
+            
+            updateScheduleUI();
+            updateDockUI();
+            
+            errorLogger.logInfo(TAG, "Settings loaded successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error loading settings", e);
+        }
     }
     
     private void updateScheduleUI() {
-        boolean isEnabled = AppPreferences.isScheduleEnabled();
-        scheduleTimeText.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
-        scheduleTimeButton.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
-        
-        if (isEnabled) {
-            String time = AppPreferences.getScheduleTime();
-            scheduleTimeText.setText("Scheduled time: " + time);
+        try {
+            boolean isEnabled = AppPreferences.isScheduleEnabled();
+            
+            if (scheduleTimeText != null) {
+                scheduleTimeText.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
+            } else {
+                errorLogger.logWarning(TAG, "Schedule time text is null in updateScheduleUI");
+            }
+            
+            if (scheduleTimeButton != null) {
+                scheduleTimeButton.setVisibility(isEnabled ? View.VISIBLE : View.GONE);
+            } else {
+                errorLogger.logWarning(TAG, "Schedule time button is null in updateScheduleUI");
+            }
+            
+            if (isEnabled && scheduleTimeText != null) {
+                String time = AppPreferences.getScheduleTime();
+                scheduleTimeText.setText("Scheduled time: " + time);
+            }
+            
+            errorLogger.logInfo(TAG, "Schedule UI updated successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error updating schedule UI", e);
         }
     }
     
     private void updateDockUI() {
-        boolean isEnabled = AppPreferences.isDockEnabled();
-        
-        if (isEnabled) {
-            if (PermissionHelper.hasOverlayPermission(this)) {
-                dockStatusText.setText("Floating dock is enabled and ready");
-                dockStatusText.setTextColor(Color.parseColor("#4CAF50"));
+        try {
+            boolean isEnabled = AppPreferences.isDockEnabled();
+            
+            if (dockStatusText != null) {
+                if (isEnabled) {
+                    if (PermissionHelper.hasOverlayPermission(this)) {
+                        dockStatusText.setText("Floating dock is enabled and ready");
+                        dockStatusText.setTextColor(Color.parseColor("#4CAF50"));
+                    } else {
+                        dockStatusText.setText("Display over other apps permission required");
+                        dockStatusText.setTextColor(Color.parseColor("#FF5722"));
+                    }
+                } else {
+                    dockStatusText.setText("Floating dock is disabled");
+                    dockStatusText.setTextColor(Color.parseColor("#666666"));
+                }
             } else {
-                dockStatusText.setText("Display over other apps permission required");
-                dockStatusText.setTextColor(Color.parseColor("#FF5722"));
+                errorLogger.logWarning(TAG, "Dock status text is null in updateDockUI");
             }
-        } else {
-            dockStatusText.setText("Floating dock is disabled");
-            dockStatusText.setTextColor(Color.parseColor("#666666"));
+            
+            errorLogger.logInfo(TAG, "Dock UI updated successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error updating dock UI", e);
         }
     }
     
     private void showTimePickerDialog() {
-        String currentTime = AppPreferences.getScheduleTime();
-        String[] timeParts = currentTime.split(":");
-        int hour = Integer.parseInt(timeParts[0]);
-        int minute = Integer.parseInt(timeParts[1]);
-        
-        TimePickerDialog dialog = new TimePickerDialog(this, new TimePickerDialog.OnTimeSetListener() {
-            @Override
-            public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
-                String formattedTime = String.format("%02d:%02d", hourOfDay, minute);
-                AppPreferences.setScheduleTime(formattedTime);
-                updateScheduleUI();
-                
-                // Restart schedule service with new time
-                if (AppPreferences.isScheduleEnabled()) {
-                    startScheduleService();
+        try {
+            String currentTime = AppPreferences.getScheduleTime();
+            String[] timeParts = currentTime.split(":");
+            int hour = Integer.parseInt(timeParts[0]);
+            int minute = Integer.parseInt(timeParts[1]);
+            
+            TimePickerDialog dialog = new TimePickerDialog(this, new TimePickerDialog.OnTimeSetListener() {
+                @Override
+                public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
+                    try {
+                        String formattedTime = String.format("%02d:%02d", hourOfDay, minute);
+                        AppPreferences.setScheduleTime(formattedTime);
+                        updateScheduleUI();
+                        
+                        // Restart schedule service with new time
+                        if (AppPreferences.isScheduleEnabled()) {
+                            startScheduleService();
+                        }
+                        
+                        Toast.makeText(SettingsActivity.this, 
+                            "Schedule time updated to " + formattedTime, Toast.LENGTH_SHORT).show();
+                        
+                        errorLogger.logInfo(TAG, "Schedule time updated to " + formattedTime);
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error setting schedule time", e);
+                        Toast.makeText(SettingsActivity.this, "Error updating schedule time", Toast.LENGTH_SHORT).show();
+                    }
                 }
-                
-                Toast.makeText(SettingsActivity.this, 
-                    "Schedule time updated to " + formattedTime, Toast.LENGTH_SHORT).show();
-            }
-        }, hour, minute, true);
-        
-        dialog.setTitle("Select Schedule Time");
-        dialog.show();
+            }, hour, minute, true);
+            
+            dialog.setTitle("Select Schedule Time");
+            dialog.show();
+            
+            errorLogger.logInfo(TAG, "Time picker dialog shown");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing time picker dialog", e);
+            Toast.makeText(this, "Error opening time picker", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void requestSchedulePermissions() {
-        if (!PermissionHelper.hasAccessibilityPermission(this)) {
-            showPermissionDialog("Accessibility Permission Required",
-                "Schedule force closing needs Accessibility permission to automatically force stop apps in background.",
-                () -> PermissionHelper.requestAccessibilityPermission(this));
-        } else {
-            startScheduleService();
+        try {
+            if (!PermissionHelper.hasAccessibilityPermission(this)) {
+                showPermissionDialog("Accessibility Permission Required",
+                    "Schedule force closing needs Accessibility permission to automatically force stop apps in background.",
+                    () -> PermissionHelper.requestAccessibilityPermission(this));
+            } else {
+                startScheduleService();
+            }
+            errorLogger.logInfo(TAG, "Schedule permission check completed");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error requesting schedule permissions", e);
         }
     }
     
     private void requestDockPermissions() {
-        if (!PermissionHelper.hasOverlayPermission(this)) {
-            showPermissionDialog("Display Over Other Apps Permission Required",
-                "Floating dock needs permission to display over other apps to work properly.",
-                () -> PermissionHelper.requestOverlayPermission(this));
-        } else {
-            startDockService();
+        try {
+            if (!PermissionHelper.hasOverlayPermission(this)) {
+                showPermissionDialog("Display Over Other Apps Permission Required",
+                    "Floating dock needs permission to display over other apps to work properly.",
+                    () -> PermissionHelper.requestOverlayPermission(this));
+            } else {
+                startDockService();
+            }
+            errorLogger.logInfo(TAG, "Dock permission check completed");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error requesting dock permissions", e);
         }
     }
     
     private void startScheduleService() {
-        Intent intent = new Intent(this, ScheduleService.class);
-        intent.setAction("START_SCHEDULE");
-        startService(intent);
-        Toast.makeText(this, "Schedule service started", Toast.LENGTH_SHORT).show();
+        try {
+            Intent intent = new Intent(this, ScheduleService.class);
+            intent.setAction("START_SCHEDULE");
+            startService(intent);
+            Toast.makeText(this, "Schedule service started", Toast.LENGTH_SHORT).show();
+            errorLogger.logInfo(TAG, "Schedule service started successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error starting schedule service", e);
+            Toast.makeText(this, "Error starting schedule service", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void stopScheduleService() {
-        Intent intent = new Intent(this, ScheduleService.class);
-        intent.setAction("STOP_SCHEDULE");
-        startService(intent);
-        Toast.makeText(this, "Schedule service stopped", Toast.LENGTH_SHORT).show();
+        try {
+            Intent intent = new Intent(this, ScheduleService.class);
+            intent.setAction("STOP_SCHEDULE");
+            startService(intent);
+            Toast.makeText(this, "Schedule service stopped", Toast.LENGTH_SHORT).show();
+            errorLogger.logInfo(TAG, "Schedule service stopped successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error stopping schedule service", e);
+            Toast.makeText(this, "Error stopping schedule service", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void startDockService() {
-        Intent intent = new Intent(this, FloatingDockService.class);
-        intent.setAction("START_DOCK");
-        startService(intent);
-        Toast.makeText(this, "Floating dock started", Toast.LENGTH_SHORT).show();
+        try {
+            Intent intent = new Intent(this, FloatingDockService.class);
+            intent.setAction("START_DOCK");
+            startService(intent);
+            Toast.makeText(this, "Floating dock started", Toast.LENGTH_SHORT).show();
+            errorLogger.logInfo(TAG, "Floating dock service started successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error starting dock service", e);
+            Toast.makeText(this, "Error starting floating dock", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void stopDockService() {
-        Intent intent = new Intent(this, FloatingDockService.class);
-        intent.setAction("STOP_DOCK");
-        startService(intent);
-        Toast.makeText(this, "Floating dock stopped", Toast.LENGTH_SHORT).show();
+        try {
+            Intent intent = new Intent(this, FloatingDockService.class);
+            intent.setAction("STOP_DOCK");
+            startService(intent);
+            Toast.makeText(this, "Floating dock stopped", Toast.LENGTH_SHORT).show();
+            errorLogger.logInfo(TAG, "Floating dock service stopped successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error stopping dock service", e);
+            Toast.makeText(this, "Error stopping floating dock", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void showDockInfoDialog() {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-        builder.setTitle("Floating Dock")
-               .setMessage("This is a floating dock that will resolve automatic disabling of accessibility service by the device.")
-               .setPositiveButton("Enable Floating Dock", (dialog, which) -> {
-                   dockSwitch.setChecked(true);
-               })
-               .setNegativeButton("Cancel", null)
-               .show();
+        try {
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+            builder.setTitle("Floating Dock")
+                   .setMessage("This is a floating dock that will resolve automatic disabling of accessibility service by the device.")
+                   .setPositiveButton("Enable Floating Dock", (dialog, which) -> {
+                       try {
+                           if (dockSwitch != null) {
+                               dockSwitch.setChecked(true);
+                           }
+                           errorLogger.logInfo(TAG, "Dock enabled from info dialog");
+                       } catch (Exception e) {
+                           errorLogger.logError(TAG, "Error enabling dock from dialog", e);
+                       }
+                   })
+                   .setNegativeButton("Cancel", null)
+                   .show();
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing dock info dialog", e);
+        }
     }
     
     private void showPermissionDialog(String title, String message, Runnable onPositive) {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-        builder.setTitle(title)
-               .setMessage(message)
-               .setPositiveButton("Grant Permission", (dialog, which) -> onPositive.run())
-               .setNegativeButton("Cancel", null)
-               .show();
+        try {
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+            builder.setTitle(title)
+                   .setMessage(message)
+                   .setPositiveButton("Grant Permission", (dialog, which) -> {
+                       try {
+                           onPositive.run();
+                       } catch (Exception e) {
+                           errorLogger.logError(TAG, "Error running permission callback", e);
+                       }
+                   })
+                   .setNegativeButton("Cancel", null)
+                   .show();
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing permission dialog", e);
+        }
     }
     
     @Override
     protected void onResume() {
         super.onResume();
-        updateScheduleUI();
-        updateDockUI();
+        try {
+            updateScheduleUI();
+            updateDockUI();
+            errorLogger.logInfo(TAG, "SettingsActivity resumed successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error in onResume", e);
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            errorLogger.logInfo(TAG, "SettingsActivity destroyed successfully");
+        } catch (Exception e) {
+            if (errorLogger != null) {
+                errorLogger.logError(TAG, "Error in onDestroy", e);
+            }
+        }
     }
 }
