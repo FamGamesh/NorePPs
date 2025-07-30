@@ -64,48 +64,52 @@ public class SettingsActivity extends AppCompatActivity {
         dockSwitch = findViewById(R.id.switch_dock);
         dockStatusText = findViewById(R.id.dock_status_text);
         
-        // Setup branding
-        TextView brandingText = brandingLayout.findViewById(R.id.branding_text);
-        brandingText.setText("Made By HEMANT SINGH");
-        brandingText.setTextColor(Color.parseColor("#FFD700"));
-        brandingText.setTextSize(16);
-        brandingText.setTypeface(brandingText.getTypeface(), android.graphics.Typeface.BOLD);
-        
-        // Style the branding container
-        CardView brandingCard = (CardView) brandingLayout.getParent();
-        if (brandingCard instanceof CardView) {
-            brandingCard.setCardBackgroundColor(Color.parseColor("#2C2C2C"));
-            brandingCard.setCardElevation(8);
-            brandingCard.setRadius(12);
+        // Setup branding safely
+        if (brandingLayout != null) {
+            TextView brandingText = brandingLayout.findViewById(R.id.branding_text);
+            if (brandingText != null) {
+                brandingText.setText("Made By HEMANT SINGH");
+                brandingText.setTextColor(Color.parseColor("#FFD700"));
+                brandingText.setTextSize(16);
+                brandingText.setTypeface(brandingText.getTypeface(), android.graphics.Typeface.BOLD);
+            }
         }
     }
     
     private void setupClickListeners() {
-        backButton.setOnClickListener(v -> finish());
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> finish());
+        }
         
-        scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            AppPreferences.setScheduleEnabled(isChecked);
-            updateScheduleUI();
-            
-            if (isChecked) {
-                requestSchedulePermissions();
-            } else {
-                stopScheduleService();
-            }
-        });
+        if (scheduleSwitch != null) {
+            scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                AppPreferences.setScheduleEnabled(isChecked);
+                updateScheduleUI();
+                
+                if (isChecked) {
+                    requestSchedulePermissions();
+                } else {
+                    stopScheduleService();
+                }
+            });
+        }
         
-        scheduleTimeButton.setOnClickListener(v -> showTimePickerDialog());
+        if (scheduleTimeButton != null) {
+            scheduleTimeButton.setOnClickListener(v -> showTimePickerDialog());
+        }
         
-        dockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            AppPreferences.setDockEnabled(isChecked);
-            updateDockUI();
-            
-            if (isChecked) {
-                requestDockPermissions();
-            } else {
-                stopDockService();
-            }
-        });
+        if (dockSwitch != null) {
+            dockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                AppPreferences.setDockEnabled(isChecked);
+                updateDockUI();
+                
+                if (isChecked) {
+                    requestDockPermissions();
+                } else {
+                    stopDockService();
+                }
+            });
+        }
     }
     
     private void showSettingsSection() {
@@ -144,7 +148,11 @@ public class SettingsActivity extends AppCompatActivity {
         card.setRadius(8);
         card.setUseCompatPadding(true);
         card.setClickable(true);
-        card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        
+        // Use a safe background instead of getDrawable which might crash
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        }
         
         LinearLayout cardLayout = new LinearLayout(this);
         cardLayout.setOrientation(LinearLayout.VERTICAL);
@@ -174,7 +182,9 @@ public class SettingsActivity extends AppCompatActivity {
         );
         params.setMargins(0, 0, 0, 16);
         
-        moreContainer.addView(card, params);
+        if (moreContainer != null) {
+            moreContainer.addView(card, params);
+        }
     }
     
     private void loadSettings() {
