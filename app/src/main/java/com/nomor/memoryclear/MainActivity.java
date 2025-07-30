@@ -662,13 +662,17 @@ public class MainActivity extends AppCompatActivity {
             }
             
             if (shouldShowDialog) {
+                // Create final copies for lambda expressions
+                final String finalTitle = title;
+                final String finalEnhancedMessage = enhancedMessage;
+                
                 androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
                 builder.setTitle("🔐 " + title)
                        .setMessage(enhancedMessage)
                        .setPositiveButton("Grant Permission", (dialog, which) -> {
                            try {
                                onPositive.run();
-                               errorLogger.logInfo(TAG, "Permission request initiated: " + title);
+                               errorLogger.logInfo(TAG, "Permission request initiated: " + finalTitle);
                            } catch (Exception e) {
                                errorLogger.logError(TAG, "Error executing permission callback", e);
                                Toast.makeText(this, "Error granting permission", Toast.LENGTH_SHORT).show();
@@ -677,10 +681,10 @@ public class MainActivity extends AppCompatActivity {
                        .setNegativeButton("Not Now", (dialog, which) -> {
                            dialog.dismiss();
                            Toast.makeText(this, "You can grant this permission later from Settings", Toast.LENGTH_LONG).show();
-                           errorLogger.logInfo(TAG, "Permission request declined: " + title);
+                           errorLogger.logInfo(TAG, "Permission request declined: " + finalTitle);
                        })
                        .setNeutralButton("Learn More", (dialog, which) -> {
-                           showPermissionEducationDialog(title, enhancedMessage);
+                           showPermissionEducationDialog(finalTitle, finalEnhancedMessage);
                        })
                        .setCancelable(false)
                        .show();
@@ -702,13 +706,17 @@ public class MainActivity extends AppCompatActivity {
         try {
             String educationalContent = getPermissionEducationContent(permissionTitle);
             
+            // Create final copies for lambda expressions
+            final String finalPermissionTitle = permissionTitle;
+            final String finalMessage = message;
+            
             androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
             builder.setTitle("Why " + permissionTitle + "?")
                    .setMessage(educationalContent)
                    .setPositiveButton("Grant Now", (dialog, which) -> {
                        // Close education dialog and show permission request again
                        dialog.dismiss();
-                       showIntelligentPermissionDialog(permissionTitle, message, () -> {
+                       showIntelligentPermissionDialog(finalPermissionTitle, finalMessage, () -> {
                            // This will be the original callback passed to intelligent dialog
                        });
                    })
