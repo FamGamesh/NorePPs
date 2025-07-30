@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">No More Apps PRO</string>
+    <string name="accessibility_service_description">No More Apps PRO uses this service to automatically force stop running apps by navigating to app settings and clicking force stop buttons. This helps free up memory and improve device performance.</string>
+</resources>
