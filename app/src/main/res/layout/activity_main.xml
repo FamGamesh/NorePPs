@@ -6,14 +6,31 @@
     android:background="@color/background_color"
     android:padding="16dp">
 
-    <!-- Settings Button -->
+    <!-- Top Bar with Info and Settings -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="end"
+        android:gravity="center_vertical"
         android:layout_marginBottom="32dp">
 
+        <!-- Info Button (Left) -->
+        <ImageButton
+            android:id="@+id/btn_info"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_info"
+            android:contentDescription="Error Logs"
+            android:tint="@color/primary_color" />
+
+        <!-- Spacer -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Settings Button (Right) -->
         <ImageButton
             android:id="@+id/btn_settings"
             android:layout_width="48dp"

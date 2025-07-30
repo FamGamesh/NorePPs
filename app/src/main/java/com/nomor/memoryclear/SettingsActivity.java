@@ -32,158 +32,302 @@ public class SettingsActivity extends AppCompatActivity {
     private TextView dockStatusText;
     
     private boolean showMoreSection = false;
+    private ErrorLogger errorLogger;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_settings);
         
-        showMoreSection = getIntent().getBooleanExtra("show_more", false);
-        
-        initializeViews();
-        setupClickListeners();
-        loadSettings();
-        
-        if (showMoreSection) {
-            showMoreSection();
-        } else {
-            showSettingsSection();
-        }
-    }
-    
-    private void initializeViews() {
-        backButton = findViewById(R.id.btn_back);
-        titleText = findViewById(R.id.title_text);
-        settingsContainer = findViewById(R.id.settings_container);
-        moreContainer = findViewById(R.id.more_container);
-        brandingLayout = findViewById(R.id.branding_layout);
-        
-        scheduleSwitch = findViewById(R.id.switch_schedule);
-        scheduleTimeText = findViewById(R.id.schedule_time_text);
-        scheduleTimeButton = findViewById(R.id.btn_schedule_time);
-        dockSwitch = findViewById(R.id.switch_dock);
-        dockStatusText = findViewById(R.id.dock_status_text);
-        
-        // Setup branding safely
-        if (brandingLayout != null) {
-            TextView brandingText = brandingLayout.findViewById(R.id.branding_text);
-            if (brandingText != null) {
-                brandingText.setText("Made By HEMANT SINGH");
-                brandingText.setTextColor(Color.parseColor("#FFD700"));
-                brandingText.setTextSize(16);
-                brandingText.setTypeface(brandingText.getTypeface(), android.graphics.Typeface.BOLD);
+        try {
+            setContentView(R.layout.activity_settings);
+            
+            // Initialize error logger first
+            errorLogger = ErrorLogger.getInstance(this);
+            errorLogger.logInfo(TAG, "SettingsActivity onCreate started");
+            
+            showMoreSection = getIntent().getBooleanExtra("show_more", false);
+            
+            initializeViews();
+            setupClickListeners();
+            loadSettings();
+            
+            if (showMoreSection) {
+                showMoreSection();
+            } else {
+                showSettingsSection();
+            }
+            
+            errorLogger.logInfo(TAG, "SettingsActivity onCreate completed successfully");
+            
+        } catch (Exception e) {
+            if (errorLogger != null) {
+                errorLogger.logError(TAG, "Critical error in SettingsActivity onCreate", e);
+            }
+            
+            try {
+                Toast.makeText(this, "Error initializing settings. Check error logs.", Toast.LENGTH_LONG).show();
+            } catch (Exception toastError) {
+                android.util.Log.e(TAG, "Failed to show error toast", toastError);
+            }
+            
+            // Try to finish gracefully
+            try {
+                finish();
+            } catch (Exception finishError) {
+                android.util.Log.e(TAG, "Failed to finish activity", finishError);
             }
         }
     }
     
+    private void initializeViews() {
+        try {
+            backButton = findViewById(R.id.btn_back);
+            titleText = findViewById(R.id.title_text);
+            settingsContainer = findViewById(R.id.settings_container);
+            moreContainer = findViewById(R.id.more_container);
+            brandingLayout = findViewById(R.id.branding_layout);
+            
+            scheduleSwitch = findViewById(R.id.switch_schedule);
+            scheduleTimeText = findViewById(R.id.schedule_time_text);
+            scheduleTimeButton = findViewById(R.id.btn_schedule_time);
+            dockSwitch = findViewById(R.id.switch_dock);
+            dockStatusText = findViewById(R.id.dock_status_text);
+            
+            // Null checks for critical views
+            if (backButton == null) {
+                errorLogger.logWarning(TAG, "Back button not found");
+            }
+            if (titleText == null) {
+                errorLogger.logWarning(TAG, "Title text not found");
+            }
+            if (settingsContainer == null) {
+                errorLogger.logWarning(TAG, "Settings container not found");
+            }
+            if (moreContainer == null) {
+                errorLogger.logWarning(TAG, "More container not found");
+            }
+            if (scheduleSwitch == null) {
+                errorLogger.logWarning(TAG, "Schedule switch not found");
+            }
+            if (dockSwitch == null) {
+                errorLogger.logWarning(TAG, "Dock switch not found");
+            }
+            
+            // Setup branding safely
+            if (brandingLayout != null) {
+                TextView brandingText = brandingLayout.findViewById(R.id.branding_text);
+                if (brandingText != null) {
+                    brandingText.setText("Made By HEMANT SINGH");
+                    brandingText.setTextColor(Color.parseColor("#FFD700"));
+                    brandingText.setTextSize(16);
+                    brandingText.setTypeface(brandingText.getTypeface(), android.graphics.Typeface.BOLD);
+                } else {
+                    errorLogger.logWarning(TAG, "Branding text not found within branding layout");
+                }
+            } else {
+                errorLogger.logWarning(TAG, "Branding layout not found");
+            }
+            
+            errorLogger.logInfo(TAG, "Views initialized successfully");
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error initializing views", e);
+        }
+    }
+    
     private void setupClickListeners() {
-        if (backButton != null) {
-            backButton.setOnClickListener(v -> finish());
-        }
-        
-        if (scheduleSwitch != null) {
-            scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                AppPreferences.setScheduleEnabled(isChecked);
-                updateScheduleUI();
-                
-                if (isChecked) {
-                    requestSchedulePermissions();
-                } else {
-                    stopScheduleService();
-                }
-            });
-        }
-        
-        if (scheduleTimeButton != null) {
-            scheduleTimeButton.setOnClickListener(v -> showTimePickerDialog());
-        }
-        
-        if (dockSwitch != null) {
-            dockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                AppPreferences.setDockEnabled(isChecked);
-                updateDockUI();
-                
-                if (isChecked) {
-                    requestDockPermissions();
-                } else {
-                    stopDockService();
-                }
-            });
+        try {
+            if (backButton != null) {
+                backButton.setOnClickListener(v -> {
+                    try {
+                        finish();
+                        errorLogger.logInfo(TAG, "Settings activity finished by back button");
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error finishing activity", e);
+                    }
+                });
+            }
+            
+            if (scheduleSwitch != null) {
+                scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    try {
+                        AppPreferences.setScheduleEnabled(isChecked);
+                        updateScheduleUI();
+                        
+                        if (isChecked) {
+                            requestSchedulePermissions();
+                        } else {
+                            stopScheduleService();
+                        }
+                        errorLogger.logInfo(TAG, "Schedule switch toggled: " + isChecked);
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error handling schedule switch", e);
+                        Toast.makeText(this, "Error updating schedule setting", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+            
+            if (scheduleTimeButton != null) {
+                scheduleTimeButton.setOnClickListener(v -> {
+                    try {
+                        showTimePickerDialog();
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error showing time picker", e);
+                        Toast.makeText(this, "Error opening time picker", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+            
+            if (dockSwitch != null) {
+                dockSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    try {
+                        AppPreferences.setDockEnabled(isChecked);
+                        updateDockUI();
+                        
+                        if (isChecked) {
+                            requestDockPermissions();
+                        } else {
+                            stopDockService();
+                        }
+                        errorLogger.logInfo(TAG, "Dock switch toggled: " + isChecked);
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error handling dock switch", e);
+                        Toast.makeText(this, "Error updating dock setting", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+            
+            errorLogger.logInfo(TAG, "Click listeners setup completed");
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error setting up click listeners", e);
         }
     }
     
     private void showSettingsSection() {
-        titleText.setText("Settings");
-        settingsContainer.setVisibility(View.VISIBLE);
-        moreContainer.setVisibility(View.GONE);
+        try {
+            if (titleText != null) {
+                titleText.setText("Settings");
+            }
+            if (settingsContainer != null) {
+                settingsContainer.setVisibility(View.VISIBLE);
+            }
+            if (moreContainer != null) {
+                moreContainer.setVisibility(View.GONE);
+            }
+            errorLogger.logInfo(TAG, "Settings section displayed");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing settings section", e);
+        }
     }
     
     private void showMoreSection() {
-        titleText.setText("More");
-        settingsContainer.setVisibility(View.GONE);
-        moreContainer.setVisibility(View.VISIBLE);
-        setupMoreSection();
+        try {
+            if (titleText != null) {
+                titleText.setText("More");
+            }
+            if (settingsContainer != null) {
+                settingsContainer.setVisibility(View.GONE);
+            }
+            if (moreContainer != null) {
+                moreContainer.setVisibility(View.VISIBLE);
+            }
+            setupMoreSection();
+            errorLogger.logInfo(TAG, "More section displayed");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing more section", e);
+        }
     }
     
     private void setupMoreSection() {
-        // Add Schedule Force Closing card
-        addMoreCard("Schedule Force Closing", 
-            "Automatically force close apps at scheduled time, even when device is in rest mode with screen off.",
-            v -> {
-                // Switch to settings section and enable schedule
-                showMoreSection = false;
-                showSettingsSection();
-                scheduleSwitch.setChecked(true);
-            });
-        
-        // Add Dock card  
-        addMoreCard("Dock",
-            "This is a floating dock that will resolve automatic disabling of accessibility service by the device.",
-            v -> showDockInfoDialog());
+        try {
+            // Add Schedule Force Closing card
+            addMoreCard("Schedule Force Closing", 
+                "Automatically force close apps at scheduled time, even when device is in rest mode with screen off.",
+                v -> {
+                    try {
+                        // Switch to settings section and enable schedule
+                        showMoreSection = false;
+                        showSettingsSection();
+                        if (scheduleSwitch != null) {
+                            scheduleSwitch.setChecked(true);
+                        }
+                        errorLogger.logInfo(TAG, "Switched to schedule settings from more section");
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error switching to schedule settings", e);
+                    }
+                });
+            
+            // Add Dock card  
+            addMoreCard("Dock",
+                "This is a floating dock that will resolve automatic disabling of accessibility service by the device.",
+                v -> {
+                    try {
+                        showDockInfoDialog();
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error showing dock info dialog", e);
+                    }
+                });
+                
+            errorLogger.logInfo(TAG, "More section setup completed");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error setting up more section", e);
+        }
     }
     
     private void addMoreCard(String title, String description, View.OnClickListener clickListener) {
-        CardView card = new CardView(this);
-        card.setCardElevation(4);
-        card.setRadius(8);
-        card.setUseCompatPadding(true);
-        card.setClickable(true);
-        
-        // Use a safe background instead of getDrawable which might crash
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            card.setForeground(getDrawable(android.R.drawable.list_selector_background));
-        }
-        
-        LinearLayout cardLayout = new LinearLayout(this);
-        cardLayout.setOrientation(LinearLayout.VERTICAL);
-        cardLayout.setPadding(24, 24, 24, 24);
-        
-        TextView titleView = new TextView(this);
-        titleView.setText(title);
-        titleView.setTextSize(18);
-        titleView.setTypeface(titleView.getTypeface(), android.graphics.Typeface.BOLD);
-        titleView.setTextColor(Color.parseColor("#2C2C2C"));
-        
-        TextView descriptionView = new TextView(this);
-        descriptionView.setText(description);
-        descriptionView.setTextSize(14);
-        descriptionView.setTextColor(Color.parseColor("#666666"));
-        descriptionView.setPadding(0, 8, 0, 0);
-        
-        cardLayout.addView(titleView);
-        cardLayout.addView(descriptionView);
-        card.addView(cardLayout);
-        
-        card.setOnClickListener(clickListener);
-        
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.setMargins(0, 0, 0, 16);
-        
-        if (moreContainer != null) {
-            moreContainer.addView(card, params);
+        try {
+            CardView card = new CardView(this);
+            card.setCardElevation(4);
+            card.setRadius(8);
+            card.setUseCompatPadding(true);
+            card.setClickable(true);
+            
+            // Use a safe background instead of getDrawable which might crash
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+                }
+            } catch (Exception e) {
+                errorLogger.logWarning(TAG, "Could not set card foreground: " + e.getMessage());
+            }
+            
+            LinearLayout cardLayout = new LinearLayout(this);
+            cardLayout.setOrientation(LinearLayout.VERTICAL);
+            cardLayout.setPadding(24, 24, 24, 24);
+            
+            TextView titleView = new TextView(this);
+            titleView.setText(title);
+            titleView.setTextSize(18);
+            titleView.setTypeface(titleView.getTypeface(), android.graphics.Typeface.BOLD);
+            titleView.setTextColor(Color.parseColor("#2C2C2C"));
+            
+            TextView descriptionView = new TextView(this);
+            descriptionView.setText(description);
+            descriptionView.setTextSize(14);
+            descriptionView.setTextColor(Color.parseColor("#666666"));
+            descriptionView.setPadding(0, 8, 0, 0);
+            
+            cardLayout.addView(titleView);
+            cardLayout.addView(descriptionView);
+            card.addView(cardLayout);
+            
+            card.setOnClickListener(clickListener);
+            
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(0, 0, 0, 16);
+            
+            if (moreContainer != null) {
+                moreContainer.addView(card, params);
+                errorLogger.logInfo(TAG, "Added more card: " + title);
+            } else {
+                errorLogger.logWarning(TAG, "More container is null, cannot add card: " + title);
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adding more card: " + title, e);
         }
     }
     

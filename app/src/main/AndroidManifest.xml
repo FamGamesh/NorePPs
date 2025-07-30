@@ -56,6 +56,13 @@
             android:theme="@style/Theme.NoMoreApps"
             android:screenOrientation="portrait" />
 
+        <!-- Error Log Activity -->
+        <activity
+            android:name="com.nomor.memoryclear.ErrorLogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NoMoreApps"
+            android:screenOrientation="portrait" />
+
         <!-- Analyze Activity -->
         <activity
             android:name="com.nomor.memoryclear.AnalyzeActivity"
