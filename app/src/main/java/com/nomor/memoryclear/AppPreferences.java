@@ -12,6 +12,8 @@ public class AppPreferences {
     private static final String KEY_SCHEDULE_TIME = "schedule_time";
     private static final String KEY_DOCK_ENABLED = "dock_enabled";
     private static final String KEY_FIRST_LAUNCH = "first_launch";
+    private static final String KEY_PREMIUM_ACTIVE = "premium_active";
+    private static final String KEY_PREMIUM_EXPIRY = "premium_expiry_time";
     
     private static SharedPreferences sPrefs;
     
@@ -69,5 +71,36 @@ public class AppPreferences {
     
     public static void setFirstLaunch(boolean firstLaunch) {
         sPrefs.edit().putBoolean(KEY_FIRST_LAUNCH, firstLaunch).apply();
+    }
+    
+    // Premium functionality
+    public static boolean isPremiumActive() {
+        boolean isActive = sPrefs.getBoolean(KEY_PREMIUM_ACTIVE, false);
+        if (isActive) {
+            // Check if premium has expired
+            long expiryTime = sPrefs.getLong(KEY_PREMIUM_EXPIRY, 0);
+            if (System.currentTimeMillis() > expiryTime) {
+                // Premium expired, deactivate
+                setPremiumActive(false);
+                return false;
+            }
+        }
+        return isActive;
+    }
+    
+    public static void setPremiumActive(boolean active) {
+        sPrefs.edit().putBoolean(KEY_PREMIUM_ACTIVE, active).apply();
+        if (!active) {
+            // Clear expiry time when deactivating
+            sPrefs.edit().remove(KEY_PREMIUM_EXPIRY).apply();
+        }
+    }
+    
+    public static void setPremiumExpiryTime(long expiryTime) {
+        sPrefs.edit().putLong(KEY_PREMIUM_EXPIRY, expiryTime).apply();
+    }
+    
+    public static long getPremiumExpiryTime() {
+        return sPrefs.getLong(KEY_PREMIUM_EXPIRY, 0);
     }
 }

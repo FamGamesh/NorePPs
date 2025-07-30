@@ -79,16 +79,21 @@ public class AppManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             // Use UsageStatsManager for Android 5.0+
             Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.HOUR_OF_DAY, -1); // Last 1 hour
+            calendar.add(Calendar.MINUTE, -10); // Last 10 minutes for better detection
             long startTime = calendar.getTimeInMillis();
             long endTime = System.currentTimeMillis();
             
             List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(
                 UsageStatsManager.INTERVAL_BEST, startTime, endTime);
             
+            // For higher Android versions, also try recent tasks
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10+ - use multiple strategies
+                addRecentlyUsedApps(runningApps, whitelistedApps, startTime);
+            }
+            
             for (UsageStats usageStats : usageStatsList) {
-                if (usageStats.getLastTimeUsed() > startTime && 
-                    usageStats.getTotalTimeInForeground() > 0) {
+                if (usageStats.getLastTimeUsed() > startTime) {
                     
                     String packageName = usageStats.getPackageName();
                     
@@ -99,6 +104,15 @@ public class AppManager {
                     
                     try {
                         ApplicationInfo appInfo = packageManager.getApplicationInfo(packageName, 0);
+                        
+                        // Focus on user apps for higher Android versions
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            // Skip system apps more aggressively on newer Android
+                            if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                                continue;
+                            }
+                        }
+                        
                         String appName = packageManager.getApplicationLabel(appInfo).toString();
                         
                         AppInfo app = new AppInfo(
@@ -149,6 +163,59 @@ public class AppManager {
         }
         
         return runningApps;
+    }
+    
+    private void addRecentlyUsedApps(List<AppInfo> runningApps, Set<String> whitelistedApps, long startTime) {
+        try {
+            // Get all installed user apps and check their last used time
+            List<ApplicationInfo> installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+            
+            for (ApplicationInfo appInfo : installedApps) {
+                // Focus on user apps only
+                if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
+                    continue;
+                }
+                
+                String packageName = appInfo.packageName;
+                
+                if (isSystemApp(packageName) || whitelistedApps.contains(packageName)) {
+                    continue;
+                }
+                
+                // Check if app was used recently
+                Calendar calendar = Calendar.getInstance();
+                calendar.add(Calendar.MINUTE, -5); // Last 5 minutes
+                long recentTime = calendar.getTimeInMillis();
+                
+                List<UsageStats> recentStats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_BEST, recentTime, System.currentTimeMillis());
+                
+                for (UsageStats stats : recentStats) {
+                    if (stats.getPackageName().equals(packageName) && 
+                        stats.getLastTimeUsed() > recentTime) {
+                        
+                        try {
+                            String appName = packageManager.getApplicationLabel(appInfo).toString();
+                            
+                            AppInfo app = new AppInfo(
+                                packageName,
+                                appName,
+                                packageManager.getApplicationIcon(appInfo)
+                            );
+                            
+                            if (!runningApps.contains(app)) {
+                                runningApps.add(app);
+                            }
+                            break;
+                        } catch (Exception e) {
+                            // Skip this app
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error adding recently used apps", e);
+        }
     }
     
     public List<AppInfo> getExcludedRunningApps() {

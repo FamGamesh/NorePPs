@@ -21,6 +21,16 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 import java.util.List;
 
+// AdMob imports
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+import com.google.android.gms.ads.rewarded.RewardedAd;
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import com.google.android.gms.ads.LoadAdError;
+
 public class MainActivity extends AppCompatActivity {
     
     private static final String TAG = "MainActivity";
@@ -30,12 +40,18 @@ public class MainActivity extends AppCompatActivity {
     private Button whitelistButton;
     private Button runningAppsButton;
     private Button excludedAppsButton;
+    private Button premiumSpeedButton;
     private ImageButton settingsButton;
     private ImageButton infoButton;
     private LinearLayout bottomNavigation;
     private Button homeButton;
     private Button moreButton;
-    private LinearLayout brandingLayout;
+    
+    // AdMob components
+    private AdView topBannerAd;
+    private AdView bottomBannerAd;
+    private InterstitialAd interstitialAd;
+    private RewardedAd rewardedAd;
     
     private AppManager appManager;
     private Handler mainHandler;
@@ -53,6 +69,9 @@ public class MainActivity extends AppCompatActivity {
             // Initialize error logger first
             errorLogger = ErrorLogger.getInstance(this);
             errorLogger.logInfo(TAG, "MainActivity onCreate started");
+            
+            // Initialize AdMob
+            initializeAdMob();
             
             appManager = new AppManager(this);
             mainHandler = new Handler(Looper.getMainLooper());
@@ -86,6 +105,104 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
+    private void initializeAdMob() {
+        try {
+            // Initialize AdMob
+            MobileAds.initialize(this, initializationStatus -> {
+                errorLogger.logInfo(TAG, "AdMob initialized successfully");
+            });
+            
+            // Load banner ads
+            loadBannerAds();
+            
+            // Load interstitial ad
+            loadInterstitialAd();
+            
+            // Load rewarded ad
+            loadRewardedAd();
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error initializing AdMob", e);
+        }
+    }
+    
+    private void loadBannerAds() {
+        try {
+            // Top banner ad
+            topBannerAd = findViewById(R.id.top_banner_ad);
+            if (topBannerAd != null) {
+                AdRequest adRequest = new AdRequest.Builder().build();
+                topBannerAd.loadAd(adRequest);
+            }
+            
+            // Bottom banner ad
+            bottomBannerAd = findViewById(R.id.bottom_banner_ad);
+            if (bottomBannerAd != null) {
+                AdRequest adRequest = new AdRequest.Builder().build();
+                bottomBannerAd.loadAd(adRequest);
+            }
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error loading banner ads", e);
+        }
+    }
+    
+    private void loadInterstitialAd() {
+        try {
+            AdRequest adRequest = new AdRequest.Builder().build();
+            
+            InterstitialAd.load(this, "ca-app-pub-3940256099942544/1033173712", adRequest,
+                new InterstitialAdLoadCallback() {
+                    @Override
+                    public void onAdLoaded(InterstitialAd interstitialAd) {
+                        MainActivity.this.interstitialAd = interstitialAd;
+                        errorLogger.logInfo(TAG, "Interstitial ad loaded");
+                    }
+                    
+                    @Override
+                    public void onAdFailedToLoad(LoadAdError loadAdError) {
+                        interstitialAd = null;
+                        errorLogger.logWarning(TAG, "Interstitial ad failed to load: " + loadAdError.getMessage());
+                    }
+                });
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error loading interstitial ad", e);
+        }
+    }
+    
+    private void loadRewardedAd() {
+        try {
+            AdRequest adRequest = new AdRequest.Builder().build();
+            
+            RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917", adRequest,
+                new RewardedAdLoadCallback() {
+                    @Override
+                    public void onAdLoaded(RewardedAd rewardedAd) {
+                        MainActivity.this.rewardedAd = rewardedAd;
+                        errorLogger.logInfo(TAG, "Rewarded ad loaded");
+                    }
+                    
+                    @Override
+                    public void onAdFailedToLoad(LoadAdError loadAdError) {
+                        rewardedAd = null;
+                        errorLogger.logWarning(TAG, "Rewarded ad failed to load: " + loadAdError.getMessage());
+                    }
+                });
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error loading rewarded ad", e);
+        }
+    }
+    
+    private void showInterstitialAd() {
+        try {
+            if (interstitialAd != null) {
+                interstitialAd.show(this);
+                loadInterstitialAd(); // Load next ad
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing interstitial ad", e);
+        }
+    }
     private void initializeViews() {
         try {
             animatedCircle = findViewById(R.id.animated_circle);
@@ -93,12 +210,17 @@ public class MainActivity extends AppCompatActivity {
             whitelistButton = findViewById(R.id.btn_whitelist);
             runningAppsButton = findViewById(R.id.btn_running_apps);
             excludedAppsButton = findViewById(R.id.btn_excluded_apps);
+            premiumSpeedButton = findViewById(R.id.btn_premium_speed);
             settingsButton = findViewById(R.id.btn_settings);
             infoButton = findViewById(R.id.btn_info);
             bottomNavigation = findViewById(R.id.bottom_navigation);
             homeButton = findViewById(R.id.btn_home);
             moreButton = findViewById(R.id.btn_more);
-            brandingLayout = findViewById(R.id.branding_layout);
+            
+            // Fix home button text
+            if (homeButton != null) {
+                homeButton.setText("Home");
+            }
             
             // Null checks for critical views
             if (animatedCircle == null) {
@@ -116,12 +238,16 @@ public class MainActivity extends AppCompatActivity {
             if (moreButton == null) {
                 errorLogger.logWarning(TAG, "More button not found");
             }
+            if (premiumSpeedButton == null) {
+                errorLogger.logWarning(TAG, "Premium speed button not found");
+            }
             
             errorLogger.logInfo(TAG, "Views initialized successfully");
             
         } catch (Exception e) {
             errorLogger.logError(TAG, "Error initializing views", e);
         }
+    }
     }
     
     private void setupAnimatedCircle() {
@@ -212,6 +338,7 @@ public class MainActivity extends AppCompatActivity {
             if (whitelistButton != null) {
                 whitelistButton.setOnClickListener(v -> {
                     try {
+                        showInterstitialAd(); // Show ad before opening
                         Intent intent = new Intent(this, WhitelistActivity.class);
                         startActivity(intent);
                         errorLogger.logInfo(TAG, "Whitelist activity launched");
@@ -225,13 +352,11 @@ public class MainActivity extends AppCompatActivity {
             if (runningAppsButton != null) {
                 runningAppsButton.setOnClickListener(v -> {
                     try {
-                        if (!PermissionHelper.hasUsageStatsPermission(this)) {
-                            showPermissionDialog("Usage Stats Permission Required", 
-                                "This app needs Usage Stats permission to see running apps.", 
-                                () -> PermissionHelper.requestUsageStatsPermission(this));
-                            return;
+                        if (!hasRequiredPermissions()) {
+                            return; // Permission check will handle the error
                         }
                         
+                        showInterstitialAd(); // Show ad before opening
                         Intent intent = new Intent(this, RunningAppsActivity.class);
                         startActivity(intent);
                         errorLogger.logInfo(TAG, "Running apps activity launched");
@@ -245,6 +370,7 @@ public class MainActivity extends AppCompatActivity {
             if (excludedAppsButton != null) {
                 excludedAppsButton.setOnClickListener(v -> {
                     try {
+                        showInterstitialAd(); // Show ad before opening
                         Intent intent = new Intent(this, RunningAppsActivity.class);
                         intent.putExtra("show_excluded", true);
                         startActivity(intent);
@@ -252,6 +378,17 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception e) {
                         errorLogger.logError(TAG, "Error launching excluded apps activity", e);
                         Toast.makeText(this, "Error opening excluded apps", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+            
+            if (premiumSpeedButton != null) {
+                premiumSpeedButton.setOnClickListener(v -> {
+                    try {
+                        showRewardedAdForPremium();
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error showing rewarded ad for premium", e);
+                        Toast.makeText(this, "Error opening premium feature", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -321,15 +458,94 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    private void checkPermissionsAndSetup() {
+    private boolean hasRequiredPermissions() {
         try {
             if (!PermissionHelper.hasUsageStatsPermission(this)) {
-                showPermissionDialog("Setup Required", 
-                    "No More Apps PRO needs Usage Stats permission to detect running apps. Grant permission to continue.", 
+                showIntelligentPermissionDialog("Usage Stats Permission Required", 
+                    "Enable Usage Stats permission to see running apps and improve performance.", 
                     () -> PermissionHelper.requestUsageStatsPermission(this));
-            } else {
-                updateRunningAppsCount();
+                return false;
             }
+            return true;
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error checking permissions", e);
+            return false;
+        }
+    }
+    
+    private void showRewardedAdForPremium() {
+        try {
+            if (rewardedAd != null) {
+                rewardedAd.show(this, rewardItem -> {
+                    try {
+                        // User earned reward, activate premium for 1 day
+                        AppPreferences.setPremiumActive(true);
+                        AppPreferences.setPremiumExpiryTime(System.currentTimeMillis() + (24 * 60 * 60 * 1000)); // 1 day
+                        
+                        Toast.makeText(this, "Premium Speed activated for 24 hours!", Toast.LENGTH_LONG).show();
+                        updatePremiumButtonUI();
+                        errorLogger.logInfo(TAG, "Premium activated via rewarded ad");
+                        
+                        // Load next rewarded ad
+                        loadRewardedAd();
+                    } catch (Exception e) {
+                        errorLogger.logError(TAG, "Error activating premium", e);
+                    }
+                });
+            } else {
+                // No ad available, show message
+                showPremiumUnavailableDialog();
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing rewarded ad", e);
+            showPremiumUnavailableDialog();
+        }
+    }
+    
+    private void showPremiumUnavailableDialog() {
+        try {
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+            builder.setTitle("Premium Speed")
+                   .setMessage("Watch a rewarded ad to unlock Premium Speed for 24 hours!\n\n" +
+                              "Premium Features:\n" +
+                              "• 3-5x faster force stopping\n" +
+                              "• Enhanced performance mode\n" +
+                              "• Priority processing\n\n" +
+                              "Ad not available right now. Please try again later.")
+                   .setPositiveButton("Try Again", (dialog, which) -> {
+                       loadRewardedAd();
+                       Toast.makeText(this, "Loading ad...", Toast.LENGTH_SHORT).show();
+                   })
+                   .setNegativeButton("Cancel", null)
+                   .show();
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing premium unavailable dialog", e);
+        }
+    }
+    
+    private void updatePremiumButtonUI() {
+        try {
+            if (premiumSpeedButton != null) {
+                boolean isPremiumActive = AppPreferences.isPremiumActive();
+                if (isPremiumActive) {
+                    premiumSpeedButton.setText("Premium Active ⚡");
+                    premiumSpeedButton.setEnabled(false);
+                } else {
+                    premiumSpeedButton.setText("Premium Speed");
+                    premiumSpeedButton.setEnabled(true);
+                }
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error updating premium button UI", e);
+        }
+    }
+    
+    private void checkPermissionsAndSetup() {
+        try {
+            // Only show setup dialog if no usage stats permission at all
+            // Remove duplicate dialog issue
+            updateRunningAppsCount(); // Always try to update, permission check is in hasRequiredPermissions()
+            updatePremiumButtonUI(); // Update premium button state
             errorLogger.logInfo(TAG, "Permission check completed");
         } catch (Exception e) {
             errorLogger.logError(TAG, "Error checking permissions", e);
@@ -420,11 +636,22 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        updateRunningAppsCount();
-        
-        // Update home button state
-        homeButton.setTextColor(Color.parseColor("#4CAF50"));
-        moreButton.setTextColor(Color.parseColor("#757575"));
+        try {
+            updateRunningAppsCount();
+            updatePremiumButtonUI(); // Check premium status
+            
+            // Update home button state
+            if (homeButton != null) {
+                homeButton.setTextColor(Color.parseColor("#4CAF50"));
+            }
+            if (moreButton != null) {
+                moreButton.setTextColor(Color.parseColor("#757575"));
+            }
+            
+            errorLogger.logInfo(TAG, "MainActivity resumed successfully");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error in onResume", e);
+        }
     }
     
     @Override
