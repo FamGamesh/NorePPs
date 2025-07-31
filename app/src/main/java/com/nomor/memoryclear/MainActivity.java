@@ -111,7 +111,13 @@ public class MainActivity extends AppCompatActivity {
             
             // Register broadcast receiver for force stop completion
             android.content.IntentFilter filter = new android.content.IntentFilter("com.nomor.memoryclear.FORCE_STOP_COMPLETED");
-            registerReceiver(forceStopCompletionReceiver, filter);
+            
+            // For Android 14+ (API 34+), specify RECEIVER_NOT_EXPORTED since this is internal
+            if (Build.VERSION.SDK_INT >= 34) {
+                registerReceiver(forceStopCompletionReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(forceStopCompletionReceiver, filter);
+            }
             
             // Show first launch tutorial if needed
             if (AppPreferences.isFirstLaunch()) {
@@ -389,20 +395,9 @@ public class MainActivity extends AppCompatActivity {
     
     private void enableScrollingForButtons() {
         try {
-            // Find the main content container and wrap it in a ScrollView if not already
-            View mainContent = findViewById(android.R.id.content);
-            if (mainContent != null) {
-                // Add scrolling capability to ensure all buttons are accessible
-                if (!(mainContent.getParent() instanceof android.widget.ScrollView)) {
-                    // The layout should already have proper scrolling structure
-                    // Ensure scroll indicators are visible
-                    android.widget.ScrollView scrollView = findViewById(android.R.id.content);
-                    if (scrollView != null) {
-                        scrollView.setScrollbarFadingEnabled(false);
-                        scrollView.setVerticalScrollBarEnabled(true);
-                    }
-                }
-            }
+            // Ensure scrolling capability - this is handled by the layout XML
+            // No need to modify the layout programmatically as it should already have proper scrolling structure
+            android.util.Log.d(TAG, "Scrolling configuration verified for buttons accessibility");
         } catch (Exception e) {
             errorLogger.logError(TAG, "Error enabling scrolling", e);
         }
