@@ -155,9 +155,13 @@ public class ScheduleService extends Service {
                 List<AppInfo> runningApps = appManager.getRunningApps();
                 
                 if (!runningApps.isEmpty()) {
+                    // Check if premium speed is active for scheduled tasks
+                    boolean isPremiumActive = AppPreferences.isPremiumActive();
+                    
                     // Start accessibility service to force stop apps
                     Intent serviceIntent = new Intent(this, ForceStopAccessibilityService.class);
                     serviceIntent.putExtra("action", "force_stop_apps");
+                    serviceIntent.putExtra("premium_speed", isPremiumActive);
                     
                     String[] packageNames = new String[runningApps.size()];
                     for (int i = 0; i < runningApps.size(); i++) {
@@ -167,12 +171,14 @@ public class ScheduleService extends Service {
                     
                     startService(serviceIntent);
                     
-                    // Show completion notification after delay
+                    // Show completion notification after delay (adjust for premium speed)
+                    int completionDelay = isPremiumActive ? 8000 : 30000; // Much faster for premium
                     android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
                     handler.postDelayed(() -> {
-                        showNotification("Scheduled Force Stop Completed", 
-                            "Successfully force stopped " + runningApps.size() + " apps");
-                    }, 30000); // 30 seconds delay
+                        String speedNote = isPremiumActive ? " (Premium Speed)" : "";
+                        showNotification("Scheduled Force Stop Completed" + speedNote, 
+                            "Successfully force stopped " + runningApps.size() + " apps" + speedNote);
+                    }, completionDelay);
                     
                 } else {
                     showNotification("No Apps to Stop", 

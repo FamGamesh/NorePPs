@@ -19,6 +19,16 @@ public class ForceStopAccessibilityService extends AccessibilityService {
     private List<String> appsToStop;
     private int currentAppIndex = 0;
     private boolean isProcessing = false;
+    private boolean isPremiumSpeedActive = false;
+    
+    // Premium speed settings - 3-4x faster
+    private static final int NORMAL_SETTINGS_DELAY = 1500;
+    private static final int NORMAL_PROCESS_DELAY = 2000;
+    private static final int NORMAL_CONFIRMATION_DELAY = 500;
+    
+    private static final int PREMIUM_SETTINGS_DELAY = 400;   // 3.75x faster
+    private static final int PREMIUM_PROCESS_DELAY = 500;    // 4x faster  
+    private static final int PREMIUM_CONFIRMATION_DELAY = 150; // 3.3x faster
     
     @Override
     public void onCreate() {
@@ -48,8 +58,10 @@ public class ForceStopAccessibilityService extends AccessibilityService {
             String action = intent.getStringExtra("action");
             if ("force_stop_apps".equals(action)) {
                 String[] packages = intent.getStringArrayExtra("packages");
+                boolean premiumSpeed = intent.getBooleanExtra("premium_speed", false);
+                
                 if (packages != null) {
-                    startForceStoppingApps(Arrays.asList(packages));
+                    startForceStoppingApps(Arrays.asList(packages), premiumSpeed);
                 }
             }
         }
@@ -57,7 +69,7 @@ public class ForceStopAccessibilityService extends AccessibilityService {
         return START_NOT_STICKY;
     }
     
-    private void startForceStoppingApps(List<String> packages) {
+    private void startForceStoppingApps(List<String> packages, boolean premiumSpeed) {
         if (isProcessing) {
             android.util.Log.w(TAG, "Already processing apps, ignoring new request");
             return;
@@ -66,8 +78,10 @@ public class ForceStopAccessibilityService extends AccessibilityService {
         appsToStop = new ArrayList<>(packages);
         currentAppIndex = 0;
         isProcessing = true;
+        isPremiumSpeedActive = premiumSpeed;
         
-        android.util.Log.d(TAG, "Starting to force stop " + appsToStop.size() + " apps");
+        android.util.Log.d(TAG, "Starting to force stop " + appsToStop.size() + " apps" + 
+            (premiumSpeed ? " with PREMIUM SPEED (3-4x faster)" : " at normal speed"));
         
         if (!appsToStop.isEmpty()) {
             processNextApp();
@@ -83,10 +97,15 @@ public class ForceStopAccessibilityService extends AccessibilityService {
         }
         
         String packageName = appsToStop.get(currentAppIndex);
-        android.util.Log.d(TAG, "Processing app: " + packageName + " (" + (currentAppIndex + 1) + "/" + appsToStop.size() + ")");
+        android.util.Log.d(TAG, "Processing app: " + packageName + " (" + (currentAppIndex + 1) + "/" + appsToStop.size() + ")" +
+            (isPremiumSpeedActive ? " [PREMIUM SPEED]" : ""));
         
         // Open app info settings for the package
         openAppInfoSettings(packageName);
+        
+        // Use premium speed delays if active
+        int settingsDelay = isPremiumSpeedActive ? PREMIUM_SETTINGS_DELAY : NORMAL_SETTINGS_DELAY;
+        int processDelay = isPremiumSpeedActive ? PREMIUM_PROCESS_DELAY : NORMAL_PROCESS_DELAY;
         
         // Wait for settings to open and then try to click force stop
         mainHandler.postDelayed(() -> {
@@ -96,8 +115,8 @@ public class ForceStopAccessibilityService extends AccessibilityService {
             mainHandler.postDelayed(() -> {
                 currentAppIndex++;
                 processNextApp();
-            }, 2000);
-        }, 1500);
+            }, processDelay);
+        }, settingsDelay);
     }
     
     private void openAppInfoSettings(String packageName) {
@@ -120,14 +139,22 @@ public class ForceStopAccessibilityService extends AccessibilityService {
                 if (forceStopNodes.isEmpty()) {
                     forceStopNodes = rootNode.findAccessibilityNodeInfosByText("FORCE STOP");
                 }
+                if (forceStopNodes.isEmpty()) {
+                    forceStopNodes = rootNode.findAccessibilityNodeInfosByText("강제 종료"); // Korean
+                }
+                if (forceStopNodes.isEmpty()) {
+                    forceStopNodes = rootNode.findAccessibilityNodeInfosByText("强制停止"); // Chinese
+                }
                 
                 for (AccessibilityNodeInfo node : forceStopNodes) {
                     if (node.isClickable() && node.isEnabled()) {
                         node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                        android.util.Log.d(TAG, "Clicked Force Stop button");
+                        android.util.Log.d(TAG, "Clicked Force Stop button" + 
+                            (isPremiumSpeedActive ? " [PREMIUM SPEED]" : ""));
                         
-                        // Wait and click confirmation dialog
-                        mainHandler.postDelayed(this::clickConfirmationButton, 500);
+                        // Use premium speed delay for confirmation
+                        int confirmationDelay = isPremiumSpeedActive ? PREMIUM_CONFIRMATION_DELAY : NORMAL_CONFIRMATION_DELAY;
+                        mainHandler.postDelayed(this::clickConfirmationButton, confirmationDelay);
                         break;
                     }
                 }
@@ -151,11 +178,18 @@ public class ForceStopAccessibilityService extends AccessibilityService {
                 if (confirmNodes.isEmpty()) {
                     confirmNodes = rootNode.findAccessibilityNodeInfosByText("FORCE STOP");
                 }
+                if (confirmNodes.isEmpty()) {
+                    confirmNodes = rootNode.findAccessibilityNodeInfosByText("확인"); // Korean OK
+                }
+                if (confirmNodes.isEmpty()) {
+                    confirmNodes = rootNode.findAccessibilityNodeInfosByText("确定"); // Chinese OK
+                }
                 
                 for (AccessibilityNodeInfo node : confirmNodes) {
                     if (node.isClickable() && node.isEnabled()) {
                         node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                        android.util.Log.d(TAG, "Clicked confirmation button");
+                        android.util.Log.d(TAG, "Clicked confirmation button" + 
+                            (isPremiumSpeedActive ? " [PREMIUM SPEED]" : ""));
                         break;
                     }
                 }

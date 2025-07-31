@@ -79,6 +79,10 @@ public class MainActivity extends AppCompatActivity {
             initializeViews();
             setupAnimatedCircle();
             setupClickListeners();
+            
+            // Apply intelligent UI adaptation
+            adaptUIForDevice();
+            
             checkPermissionsAndSetup();
             startPeriodicUpdate();
             
@@ -202,6 +206,300 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             errorLogger.logError(TAG, "Error showing interstitial ad", e);
         }
+    }
+    
+    /**
+     * Shows interstitial ad immediately when clicked, then executes navigation after delay
+     */
+    private void showInterstitialAdThenNavigate(Runnable navigationAction) {
+        try {
+            if (interstitialAd != null) {
+                interstitialAd.show(this);
+                
+                // Set up callback for when ad is dismissed
+                interstitialAd.setFullScreenContentCallback(new com.google.android.gms.ads.FullScreenContentCallback() {
+                    @Override
+                    public void onAdDismissedFullScreenContent() {
+                        super.onAdDismissedFullScreenContent();
+                        // Execute navigation after ad is dismissed
+                        navigationAction.run();
+                        // Load next ad
+                        loadInterstitialAd();
+                    }
+                    
+                    @Override
+                    public void onAdFailedToShowFullScreenContent(com.google.android.gms.ads.AdError adError) {
+                        super.onAdFailedToShowFullScreenContent(adError);
+                        // If ad fails to show, still proceed with navigation
+                        navigationAction.run();
+                        loadInterstitialAd();
+                    }
+                    
+                    @Override
+                    public void onAdShowedFullScreenContent() {
+                        super.onAdShowedFullScreenContent();
+                        errorLogger.logInfo(TAG, "Interstitial ad shown successfully");
+                    }
+                });
+            } else {
+                // No ad available, proceed with navigation immediately
+                navigationAction.run();
+                errorLogger.logInfo(TAG, "No interstitial ad available, proceeding with navigation");
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error showing interstitial ad", e);
+            // If there's an error, still proceed with navigation
+            navigationAction.run();
+        }
+    }
+    
+    /**
+     * Intelligent UI adaptation based on device screen size and Android version
+     */
+    private void adaptUIForDevice() {
+        try {
+            // Get screen dimensions
+            android.util.DisplayMetrics displayMetrics = new android.util.DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+            
+            int screenHeight = displayMetrics.heightPixels;
+            int screenWidth = displayMetrics.widthPixels;
+            float density = displayMetrics.density;
+            
+            // Calculate available space considering system UI
+            int statusBarHeight = getStatusBarHeight();
+            int navigationBarHeight = getNavigationBarHeight();
+            int availableHeight = screenHeight - statusBarHeight - navigationBarHeight;
+            
+            // Calculate ad banner heights
+            int topBannerHeight = getBannerAdHeight();
+            int bottomBannerHeight = getBannerAdHeight();
+            
+            // Available content area
+            int contentHeight = availableHeight - topBannerHeight - bottomBannerHeight;
+            
+            android.util.Log.d(TAG, "Screen adaptation - Height: " + screenHeight + 
+                ", Available: " + availableHeight + ", Content: " + contentHeight + 
+                ", Android: " + Build.VERSION.SDK_INT);
+            
+            // Apply intelligent adaptations
+            adaptLayoutForScreenSize(contentHeight, screenHeight, density);
+            adaptForAndroidVersion();
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adapting UI for device", e);
+        }
+    }
+    
+    private void adaptLayoutForScreenSize(int contentHeight, int screenHeight, float density) {
+        try {
+            // Convert dp to pixels
+            int dp400 = (int) (400 * density);
+            int dp350 = (int) (350 * density);
+            
+            if (contentHeight < dp400) {
+                // Small screen adaptations
+                makeLayoutCompact();
+                enableScrollingForButtons();
+                adjustBannerAdSizes(true);
+                
+                android.util.Log.d(TAG, "Applied small screen adaptations");
+            } else if (contentHeight < dp350 * 2) {
+                // Medium screen adaptations
+                adjustSpacingForMediumScreen();
+                enableScrollingForButtons();
+                
+                android.util.Log.d(TAG, "Applied medium screen adaptations");
+            } else {
+                // Large screen - standard layout
+                adjustBannerAdSizes(false);
+                android.util.Log.d(TAG, "Using standard layout for large screen");
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adapting layout for screen size", e);
+        }
+    }
+    
+    private void makeLayoutCompact() {
+        try {
+            // Make buttons smaller and reduce spacing
+            if (whitelistButton != null) {
+                android.view.ViewGroup.LayoutParams params = whitelistButton.getLayoutParams();
+                if (params != null) {
+                    params.height = (int) (40 * getResources().getDisplayMetrics().density);
+                    whitelistButton.setLayoutParams(params);
+                }
+            }
+            
+            if (runningAppsButton != null) {
+                android.view.ViewGroup.LayoutParams params = runningAppsButton.getLayoutParams();
+                if (params != null) {
+                    params.height = (int) (40 * getResources().getDisplayMetrics().density);
+                    runningAppsButton.setLayoutParams(params);
+                }
+            }
+            
+            if (excludedAppsButton != null) {
+                android.view.ViewGroup.LayoutParams params = excludedAppsButton.getLayoutParams();
+                if (params != null) {
+                    params.height = (int) (40 * getResources().getDisplayMetrics().density);
+                    excludedAppsButton.setLayoutParams(params);
+                }
+            }
+            
+            if (premiumSpeedButton != null) {
+                android.view.ViewGroup.LayoutParams params = premiumSpeedButton.getLayoutParams();
+                if (params != null) {
+                    params.height = (int) (35 * getResources().getDisplayMetrics().density);
+                    premiumSpeedButton.setLayoutParams(params);
+                }
+            }
+            
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error making layout compact", e);
+        }
+    }
+    
+    private void enableScrollingForButtons() {
+        try {
+            // Find the main content container and wrap it in a ScrollView if not already
+            View mainContent = findViewById(android.R.id.content);
+            if (mainContent != null) {
+                // Add scrolling capability to ensure all buttons are accessible
+                if (!(mainContent.getParent() instanceof android.widget.ScrollView)) {
+                    // The layout should already have proper scrolling structure
+                    // Ensure scroll indicators are visible
+                    android.widget.ScrollView scrollView = findViewById(android.R.id.content);
+                    if (scrollView != null) {
+                        scrollView.setScrollbarFadingEnabled(false);
+                        scrollView.setVerticalScrollBarEnabled(true);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error enabling scrolling", e);
+        }
+    }
+    
+    private void adjustSpacingForMediumScreen() {
+        try {
+            // Reduce margins and padding for medium screens
+            int reducedMargin = (int) (8 * getResources().getDisplayMetrics().density);
+            
+            if (bottomNavigation != null) {
+                android.view.ViewGroup.MarginLayoutParams params = 
+                    (android.view.ViewGroup.MarginLayoutParams) bottomNavigation.getLayoutParams();
+                if (params != null) {
+                    params.bottomMargin = reducedMargin;
+                    bottomNavigation.setLayoutParams(params);
+                }
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adjusting spacing for medium screen", e);
+        }
+    }
+    
+    private void adjustBannerAdSizes(boolean useSmallBanners) {
+        try {
+            if (topBannerAd != null) {
+                android.view.ViewGroup.LayoutParams params = topBannerAd.getLayoutParams();
+                if (params != null && useSmallBanners) {
+                    // Use smaller banner ad size for small screens
+                    params.height = (int) (32 * getResources().getDisplayMetrics().density);
+                    topBannerAd.setLayoutParams(params);
+                }
+            }
+            
+            if (bottomBannerAd != null) {
+                android.view.ViewGroup.LayoutParams params = bottomBannerAd.getLayoutParams();
+                if (params != null && useSmallBanners) {
+                    params.height = (int) (32 * getResources().getDisplayMetrics().density);
+                    bottomBannerAd.setLayoutParams(params);
+                }
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adjusting banner ad sizes", e);
+        }
+    }
+    
+    private void adaptForAndroidVersion() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Android 11+
+                // Handle display cutouts and edge-to-edge display
+                getWindow().setFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                );
+            }
+            
+            if (Build.VERSION.SDK_INT >= 35) { // Android 15 (API 35)
+                // Special adaptations for Android 15
+                adjustForAndroid15();
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adapting for Android version", e);
+        }
+    }
+    
+    private void adjustForAndroid15() {
+        try {
+            // Android 15 specific adaptations
+            // Ensure proper padding for gesture navigation
+            View mainContent = findViewById(android.R.id.content);
+            if (mainContent != null) {
+                int gestureNavPadding = (int) (16 * getResources().getDisplayMetrics().density);
+                mainContent.setPadding(
+                    mainContent.getPaddingLeft(),
+                    mainContent.getPaddingTop(),
+                    mainContent.getPaddingRight(),
+                    gestureNavPadding
+                );
+            }
+            
+            // Ensure bottom navigation is properly positioned above system UI
+            if (bottomNavigation != null) {
+                android.view.ViewGroup.MarginLayoutParams params = 
+                    (android.view.ViewGroup.MarginLayoutParams) bottomNavigation.getLayoutParams();
+                if (params != null) {
+                    params.bottomMargin = getNavigationBarHeight() + 
+                        (int) (8 * getResources().getDisplayMetrics().density);
+                    bottomNavigation.setLayoutParams(params);
+                }
+            }
+            
+            android.util.Log.d(TAG, "Applied Android 15 specific adaptations");
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error adjusting for Android 15", e);
+        }
+    }
+    
+    private int getStatusBarHeight() {
+        try {
+            int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (resourceId > 0) {
+                return getResources().getDimensionPixelSize(resourceId);
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error getting status bar height", e);
+        }
+        return (int) (24 * getResources().getDisplayMetrics().density); // Default 24dp
+    }
+    
+    private int getNavigationBarHeight() {
+        try {
+            int resourceId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            if (resourceId > 0) {
+                return getResources().getDimensionPixelSize(resourceId);
+            }
+        } catch (Exception e) {
+            errorLogger.logError(TAG, "Error getting navigation bar height", e);
+        }
+        return (int) (48 * getResources().getDisplayMetrics().density); // Default 48dp
+    }
+    
+    private int getBannerAdHeight() {
+        // Standard banner ad height
+        return (int) (50 * getResources().getDisplayMetrics().density);
     }
     private void initializeViews() {
         try {
@@ -337,10 +635,12 @@ public class MainActivity extends AppCompatActivity {
             if (whitelistButton != null) {
                 whitelistButton.setOnClickListener(v -> {
                     try {
-                        showInterstitialAd(); // Show ad before opening
-                        Intent intent = new Intent(this, WhitelistActivity.class);
-                        startActivity(intent);
-                        errorLogger.logInfo(TAG, "Whitelist activity launched");
+                        // Show interstitial ad first, then navigate
+                        showInterstitialAdThenNavigate(() -> {
+                            Intent intent = new Intent(this, WhitelistActivity.class);
+                            startActivity(intent);
+                            errorLogger.logInfo(TAG, "Whitelist activity launched");
+                        });
                     } catch (Exception e) {
                         errorLogger.logError(TAG, "Error launching whitelist activity", e);
                         Toast.makeText(this, "Error opening whitelist", Toast.LENGTH_SHORT).show();
@@ -355,10 +655,12 @@ public class MainActivity extends AppCompatActivity {
                             return; // Permission check will handle the error
                         }
                         
-                        showInterstitialAd(); // Show ad before opening
-                        Intent intent = new Intent(this, RunningAppsActivity.class);
-                        startActivity(intent);
-                        errorLogger.logInfo(TAG, "Running apps activity launched");
+                        // Show interstitial ad first, then navigate
+                        showInterstitialAdThenNavigate(() -> {
+                            Intent intent = new Intent(this, RunningAppsActivity.class);
+                            startActivity(intent);
+                            errorLogger.logInfo(TAG, "Running apps activity launched");
+                        });
                     } catch (Exception e) {
                         errorLogger.logError(TAG, "Error launching running apps activity", e);
                         Toast.makeText(this, "Error opening running apps", Toast.LENGTH_SHORT).show();
@@ -369,11 +671,13 @@ public class MainActivity extends AppCompatActivity {
             if (excludedAppsButton != null) {
                 excludedAppsButton.setOnClickListener(v -> {
                     try {
-                        showInterstitialAd(); // Show ad before opening
-                        Intent intent = new Intent(this, RunningAppsActivity.class);
-                        intent.putExtra("show_excluded", true);
-                        startActivity(intent);
-                        errorLogger.logInfo(TAG, "Excluded apps activity launched");
+                        // Show interstitial ad first, then navigate
+                        showInterstitialAdThenNavigate(() -> {
+                            Intent intent = new Intent(this, RunningAppsActivity.class);
+                            intent.putExtra("show_excluded", true);
+                            startActivity(intent);
+                            errorLogger.logInfo(TAG, "Excluded apps activity launched");
+                        });
                     } catch (Exception e) {
                         errorLogger.logError(TAG, "Error launching excluded apps activity", e);
                         Toast.makeText(this, "Error opening excluded apps", Toast.LENGTH_SHORT).show();

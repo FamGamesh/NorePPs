@@ -160,9 +160,13 @@ public class AnalyzeActivity extends AppCompatActivity {
         
         statusText.setText("Starting force stop process...");
         
+        // Check if premium speed is active
+        boolean isPremiumActive = AppPreferences.isPremiumActive();
+        
         // Start accessibility service force stopping
         Intent serviceIntent = new Intent(this, ForceStopAccessibilityService.class);
         serviceIntent.putExtra("action", "force_stop_apps");
+        serviceIntent.putExtra("premium_speed", isPremiumActive);
         
         String[] packageNames = new String[selectedApps.size()];
         for (int i = 0; i < selectedApps.size(); i++) {
@@ -172,22 +176,26 @@ public class AnalyzeActivity extends AppCompatActivity {
         
         startService(serviceIntent);
         
-        // Simulate the force stopping process with live updates
-        simulateForceStoppingProcess(selectedApps);
+        // Simulate the force stopping process with live updates (adjust timing based on premium)
+        simulateForceStoppingProcess(selectedApps, isPremiumActive);
     }
     
-    private void simulateForceStoppingProcess(List<AppInfo> selectedApps) {
+    private void simulateForceStoppingProcess(List<AppInfo> selectedApps, boolean isPremiumActive) {
         new Thread(() -> {
+            // Adjust timing based on premium speed
+            int delayPerApp = isPremiumActive ? 500 : 2000; // 4x faster for premium
+            
             for (AppInfo app : selectedApps) {
                 try {
-                    Thread.sleep(2000); // Simulate time for each app
+                    Thread.sleep(delayPerApp);
                     
                     processedApps++;
                     final int progress = (processedApps * 100) / totalApps;
                     
                     mainHandler.post(() -> {
                         progressBar.setProgress(progress);
-                        statusText.setText("Force stopping " + app.appName + "... (" + 
+                        String speedIndicator = isPremiumActive ? " ⚡ PREMIUM SPEED" : "";
+                        statusText.setText("Force stopping " + app.appName + "..." + speedIndicator + " (" + 
                             processedApps + "/" + totalApps + ")");
                     });
                     
@@ -199,20 +207,29 @@ public class AnalyzeActivity extends AppCompatActivity {
             // Process completed
             mainHandler.post(() -> {
                 progressBar.setVisibility(View.GONE);
-                statusText.setText("Force stopping completed! " + processedApps + " apps stopped.");
+                String completionMessage = isPremiumActive ? 
+                    "⚡ PREMIUM SPEED force stopping completed! " + processedApps + " apps stopped in record time!" :
+                    "Force stopping completed! " + processedApps + " apps stopped.";
+                statusText.setText(completionMessage);
                 
                 // Show completion dialog
-                showCompletionDialog();
+                showCompletionDialog(isPremiumActive);
             });
             
         }).start();
     }
     
-    private void showCompletionDialog() {
+    private void showCompletionDialog(boolean wasPremiumActive) {
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-        builder.setTitle("Force Stop Completed")
-               .setMessage("Successfully force stopped " + processedApps + " apps.\n\n" +
-                          "Your device should now have more available memory.")
+        String title = wasPremiumActive ? "⚡ Premium Speed Complete!" : "Force Stop Completed";
+        String message = wasPremiumActive ? 
+            "Successfully force stopped " + processedApps + " apps at PREMIUM SPEED (3-4x faster)!\n\n" +
+            "Your device should now have significantly more available memory." :
+            "Successfully force stopped " + processedApps + " apps.\n\n" +
+            "Your device should now have more available memory.";
+            
+        builder.setTitle(title)
+               .setMessage(message)
                .setPositiveButton("Back to Home", (dialog, which) -> {
                    Intent intent = new Intent(this, MainActivity.class);
                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
