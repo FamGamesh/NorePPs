@@ -21,6 +21,12 @@ public class AppManager {
     private ActivityManager activityManager;
     private UsageStatsManager usageStatsManager;
     
+    // Cache management for immediate refresh after force stop
+    private List<AppInfo> cachedRunningApps = null;
+    private long lastCacheTime = 0;
+    private static final long CACHE_VALIDITY_MS = 3000; // 3 seconds cache validity
+    private static final long FORCE_STOP_DETECTION_WINDOW_MS = 2 * 60 * 1000; // 2 minutes after force stop
+    
     // System apps to exclude from force stopping
     private static final String[] SYSTEM_EXCLUSIONS = {
         "android",
@@ -73,21 +79,50 @@ public class AppManager {
     }
     
     public List<AppInfo> getRunningApps() {
+        // Check if we have valid cached results
+        long currentTime = System.currentTimeMillis();
+        if (cachedRunningApps != null && (currentTime - lastCacheTime) < CACHE_VALIDITY_MS) {
+            android.util.Log.d(TAG, "Returning cached running apps: " + cachedRunningApps.size());
+            return new ArrayList<>(cachedRunningApps);
+        }
+        
+        return getRunningAppsInternal(false);
+    }
+    
+    /**
+     * Force refresh of running apps - ignores cache and uses optimized detection after force stop
+     */
+    public List<AppInfo> getRunningAppsForceRefresh() {
+        android.util.Log.d(TAG, "Force refresh requested - clearing cache and using optimized detection");
+        clearCache();
+        return getRunningAppsInternal(true);
+    }
+    
+    /**
+     * Clear the cache to force fresh detection on next call
+     */
+    public void clearCache() {
+        cachedRunningApps = null;
+        lastCacheTime = 0;
+        android.util.Log.d(TAG, "App detection cache cleared");
+    }
+    
+    private List<AppInfo> getRunningAppsInternal(boolean postForceStopRefresh) {
         List<AppInfo> runningApps = new ArrayList<>();
         Set<String> whitelistedApps = AppPreferences.getWhitelistedApps();
         
         try {
             // Use multiple detection strategies for comprehensive app detection
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // Strategy 1: UsageStatsManager - Recent usage based detection
-                addRunningAppsFromUsageStats(runningApps, whitelistedApps);
+                // Strategy 1: UsageStatsManager - with optimized time window after force stop
+                addRunningAppsFromUsageStats(runningApps, whitelistedApps, postForceStopRefresh);
                 
                 // Strategy 2: ActivityManager - Process based detection (still works on newer Android)
                 addRunningAppsFromProcesses(runningApps, whitelistedApps);
                 
                 // Strategy 3: Extended recent usage detection for Android 10+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    addExtendedRunningAppsDetection(runningApps, whitelistedApps);
+                    addExtendedRunningAppsDetection(runningApps, whitelistedApps, postForceStopRefresh);
                 }
                 
                 // Strategy 4: Running services detection
@@ -101,7 +136,12 @@ public class AppManager {
             // Remove duplicates and sort
             removeDuplicates(runningApps);
             
-            android.util.Log.d(TAG, "Detected " + runningApps.size() + " running apps using enhanced detection");
+            // Cache the results
+            cachedRunningApps = new ArrayList<>(runningApps);
+            lastCacheTime = System.currentTimeMillis();
+            
+            String refreshType = postForceStopRefresh ? " [POST-FORCE-STOP OPTIMIZED]" : "";
+            android.util.Log.d(TAG, "Detected " + runningApps.size() + " running apps using enhanced detection" + refreshType);
             
         } catch (Exception e) {
             android.util.Log.e(TAG, "Error in comprehensive app detection", e);
@@ -110,11 +150,19 @@ public class AppManager {
         return runningApps;
     }
     
-    private void addRunningAppsFromUsageStats(List<AppInfo> runningApps, Set<String> whitelistedApps) {
+    private void addRunningAppsFromUsageStats(List<AppInfo> runningApps, Set<String> whitelistedApps, boolean postForceStopRefresh) {
         try {
-            // Extended time window for better detection
+            // Optimized time window - shorter after force stop for immediate detection
             Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.MINUTE, -30); // Last 30 minutes for comprehensive detection
+            if (postForceStopRefresh) {
+                // Use much shorter window after force stop for accurate count
+                calendar.add(Calendar.MINUTE, -2); // Only last 2 minutes for post-force-stop detection
+                android.util.Log.d(TAG, "Using optimized 2-minute detection window after force stop");
+            } else {
+                // Normal detection window
+                calendar.add(Calendar.MINUTE, -10); // Reduced from 30 to 10 minutes for better accuracy
+            }
+            
             long startTime = calendar.getTimeInMillis();
             long endTime = System.currentTimeMillis();
             
@@ -122,10 +170,19 @@ public class AppManager {
                 UsageStatsManager.INTERVAL_BEST, startTime, endTime);
             
             for (UsageStats usageStats : usageStatsList) {
-                // Check if app was active recently
-                if (usageStats.getLastTimeUsed() > startTime || 
-                    usageStats.getTotalTimeInForeground() > 0) {
-                    
+                // More strict criteria for post-force-stop detection
+                boolean isActive = false;
+                if (postForceStopRefresh) {
+                    // Very recent activity required after force stop
+                    isActive = usageStats.getLastTimeUsed() > (endTime - FORCE_STOP_DETECTION_WINDOW_MS) ||
+                              usageStats.getLastTimeVisible() > (endTime - FORCE_STOP_DETECTION_WINDOW_MS);
+                } else {
+                    // Normal detection criteria
+                    isActive = usageStats.getLastTimeUsed() > startTime || 
+                              usageStats.getTotalTimeInForeground() > 0;
+                }
+                
+                if (isActive) {
                     String packageName = usageStats.getPackageName();
                     
                     // Skip critical system exclusions and whitelisted apps
@@ -152,7 +209,8 @@ public class AppManager {
                 }
             }
             
-            android.util.Log.d(TAG, "UsageStats detection added " + runningApps.size() + " apps");
+            String detectionType = postForceStopRefresh ? " [OPTIMIZED POST-FORCE-STOP]" : "";
+            android.util.Log.d(TAG, "UsageStats detection added " + runningApps.size() + " apps" + detectionType);
         } catch (Exception e) {
             android.util.Log.e(TAG, "Error in UsageStats detection", e);
         }
@@ -203,14 +261,18 @@ public class AppManager {
         }
     }
     
-    private void addExtendedRunningAppsDetection(List<AppInfo> runningApps, Set<String> whitelistedApps) {
+    private void addExtendedRunningAppsDetection(List<AppInfo> runningApps, Set<String> whitelistedApps, boolean postForceStopRefresh) {
         try {
             // Get all installed apps and check recent activity
             List<ApplicationInfo> installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
             
-            // Check recent activity (last 5 minutes for immediate detection)
+            // Optimized time window for different scenarios
             Calendar recentCalendar = Calendar.getInstance();
-            recentCalendar.add(Calendar.MINUTE, -5);
+            if (postForceStopRefresh) {
+                recentCalendar.add(Calendar.MINUTE, -1); // Very recent - 1 minute for post-force-stop
+            } else {
+                recentCalendar.add(Calendar.MINUTE, -5); // Normal - 5 minutes for regular detection
+            }
             long recentTime = recentCalendar.getTimeInMillis();
             
             List<UsageStats> recentStats = usageStatsManager.queryUsageStats(
@@ -225,31 +287,43 @@ public class AppManager {
                 
                 // Check if app has recent activity
                 for (UsageStats stats : recentStats) {
-                    if (stats.getPackageName().equals(packageName) && 
-                        (stats.getLastTimeUsed() > recentTime || 
-                         stats.getLastTimeVisible() > recentTime)) {
+                    if (stats.getPackageName().equals(packageName)) {
+                        boolean hasRecentActivity = false;
                         
-                        try {
-                            String appName = packageManager.getApplicationLabel(appInfo).toString();
-                            
-                            AppInfo app = new AppInfo(
-                                packageName,
-                                appName,
-                                packageManager.getApplicationIcon(appInfo)
-                            );
-                            
-                            if (!containsApp(runningApps, app)) {
-                                runningApps.add(app);
+                        if (postForceStopRefresh) {
+                            // Stricter criteria after force stop
+                            hasRecentActivity = stats.getLastTimeUsed() > recentTime && 
+                                              stats.getLastTimeVisible() > recentTime;
+                        } else {
+                            // Normal criteria
+                            hasRecentActivity = stats.getLastTimeUsed() > recentTime || 
+                                              stats.getLastTimeVisible() > recentTime;
+                        }
+                        
+                        if (hasRecentActivity) {
+                            try {
+                                String appName = packageManager.getApplicationLabel(appInfo).toString();
+                                
+                                AppInfo app = new AppInfo(
+                                    packageName,
+                                    appName,
+                                    packageManager.getApplicationIcon(appInfo)
+                                );
+                                
+                                if (!containsApp(runningApps, app)) {
+                                    runningApps.add(app);
+                                }
+                                break;
+                            } catch (Exception e) {
+                                // Skip this app
                             }
-                            break;
-                        } catch (Exception e) {
-                            // Skip this app
                         }
                     }
                 }
             }
             
-            android.util.Log.d(TAG, "Extended detection added more apps, total now: " + runningApps.size());
+            String detectionType = postForceStopRefresh ? " [POST-FORCE-STOP OPTIMIZED]" : "";
+            android.util.Log.d(TAG, "Extended detection added more apps, total now: " + runningApps.size() + detectionType);
         } catch (Exception e) {
             android.util.Log.e(TAG, "Error in extended detection", e);
         }
@@ -380,5 +454,12 @@ public class AppManager {
     
     public int getRunningAppsCount() {
         return getRunningApps().size();
+    }
+    
+    /**
+     * Get running apps count with force refresh for immediate update after force stop
+     */
+    public int getRunningAppsCountForceRefresh() {
+        return getRunningAppsForceRefresh().size();
     }
 }

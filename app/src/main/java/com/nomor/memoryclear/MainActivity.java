@@ -60,6 +60,28 @@ public class MainActivity extends AppCompatActivity {
     private boolean isAnimating = false;
     private ErrorLogger errorLogger;
     
+    // Broadcast receiver for force stop completion
+    private android.content.BroadcastReceiver forceStopCompletionReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context context, android.content.Intent intent) {
+            if ("com.nomor.memoryclear.FORCE_STOP_COMPLETED".equals(intent.getAction())) {
+                int appsStoppedCount = intent.getIntExtra("apps_stopped", 0);
+                errorLogger.logInfo(TAG, "Received force stop completion broadcast - " + appsStoppedCount + " apps stopped");
+                
+                // Clear cache and force refresh the count
+                appManager.clearCache();
+                
+                // Wait a moment for apps to fully stop, then refresh
+                mainHandler.postDelayed(() -> {
+                    updateRunningAppsCount(true);
+                    Toast.makeText(MainActivity.this, 
+                        "Successfully stopped " + appsStoppedCount + " apps! Count updated.", 
+                        Toast.LENGTH_LONG).show();
+                }, 1000);
+            }
+        }
+    };
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -86,6 +108,10 @@ public class MainActivity extends AppCompatActivity {
             
             checkPermissionsAndSetup();
             startPeriodicUpdate();
+            
+            // Register broadcast receiver for force stop completion
+            android.content.IntentFilter filter = new android.content.IntentFilter("com.nomor.memoryclear.FORCE_STOP_COMPLETED");
+            registerReceiver(forceStopCompletionReceiver, filter);
             
             // Show first launch tutorial if needed
             if (AppPreferences.isFirstLaunch()) {
@@ -728,10 +754,10 @@ public class MainActivity extends AppCompatActivity {
             if (homeButton != null) {
                 homeButton.setOnClickListener(v -> {
                     try {
-                        // Already on home, just refresh
-                        updateRunningAppsCount();
+                        // Already on home, force refresh for accurate count
+                        updateRunningAppsCount(true);
                         Toast.makeText(this, "Refreshed!", Toast.LENGTH_SHORT).show();
-                        errorLogger.logInfo(TAG, "Home refresh completed");
+                        errorLogger.logInfo(TAG, "Home force refresh completed");
                     } catch (Exception e) {
                         errorLogger.logError(TAG, "Error refreshing home", e);
                         Toast.makeText(this, "Error refreshing", Toast.LENGTH_SHORT).show();
@@ -857,15 +883,31 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateRunningAppsCount() {
+        updateRunningAppsCount(false);
+    }
+    
+    /**
+     * Update running apps count with option to force refresh
+     * @param forceRefresh If true, ignores cache and uses optimized post-force-stop detection
+     */
+    private void updateRunningAppsCount(boolean forceRefresh) {
         new Thread(() -> {
             try {
-                final int count = appManager.getRunningAppsCount();
+                final int count;
+                if (forceRefresh) {
+                    count = appManager.getRunningAppsCountForceRefresh();
+                    errorLogger.logInfo(TAG, "Force refresh - running apps count: " + count);
+                } else {
+                    count = appManager.getRunningAppsCount();
+                }
+                
                 runOnUiThread(() -> {
                     try {
                         if (runningAppsCount != null) {
                             runningAppsCount.setText(String.valueOf(count));
                             animateCountChange();
-                            errorLogger.logInfo(TAG, "Running apps count updated: " + count);
+                            String refreshType = forceRefresh ? " [FORCE REFRESH]" : "";
+                            errorLogger.logInfo(TAG, "Running apps count updated: " + count + refreshType);
                         } else {
                             errorLogger.logWarning(TAG, "Running apps count view is null");
                         }
@@ -1098,7 +1140,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         try {
-            updateRunningAppsCount();
+            // Use force refresh when resuming to ensure accurate count after potential force stops
+            updateRunningAppsCount(true);
             updatePremiumButtonUI(); // Check premium status
             
             // Update home button state
@@ -1109,7 +1152,7 @@ public class MainActivity extends AppCompatActivity {
                 moreButton.setTextColor(Color.parseColor("#757575"));
             }
             
-            errorLogger.logInfo(TAG, "MainActivity resumed successfully");
+            errorLogger.logInfo(TAG, "MainActivity resumed successfully with force refresh");
         } catch (Exception e) {
             errorLogger.logError(TAG, "Error in onResume", e);
         }
@@ -1122,6 +1165,15 @@ public class MainActivity extends AppCompatActivity {
             if (mainHandler != null && updateRunnable != null) {
                 mainHandler.removeCallbacks(updateRunnable);
             }
+            
+            // Unregister broadcast receiver
+            try {
+                unregisterReceiver(forceStopCompletionReceiver);
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered
+                errorLogger.logWarning(TAG, "Broadcast receiver was not registered");
+            }
+            
             isAnimating = false;
             errorLogger.logInfo(TAG, "MainActivity destroyed successfully");
         } catch (Exception e) {

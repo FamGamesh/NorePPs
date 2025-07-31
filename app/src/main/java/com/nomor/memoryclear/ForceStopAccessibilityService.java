@@ -203,6 +203,19 @@ public class ForceStopAccessibilityService extends AccessibilityService {
     
     private void completeProcessing() {
         android.util.Log.d(TAG, "Force stopping process completed");
+        
+        // Send broadcast to notify that force stopping is completed
+        try {
+            android.content.Intent completionIntent = new android.content.Intent("com.nomor.memoryclear.FORCE_STOP_COMPLETED");
+            if (appsToStop != null) {
+                completionIntent.putExtra("apps_stopped", appsToStop.size());
+            }
+            sendBroadcast(completionIntent);
+            android.util.Log.d(TAG, "Force stop completion broadcast sent");
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error sending force stop completion broadcast", e);
+        }
+        
         isProcessing = false;
         currentAppIndex = 0;
         

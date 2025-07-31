@@ -231,6 +231,11 @@ public class AnalyzeActivity extends AppCompatActivity {
         builder.setTitle(title)
                .setMessage(message)
                .setPositiveButton("Back to Home", (dialog, which) -> {
+                   // Send broadcast to notify MainActivity to refresh count
+                   android.content.Intent refreshIntent = new android.content.Intent("com.nomor.memoryclear.FORCE_STOP_COMPLETED");
+                   refreshIntent.putExtra("apps_stopped", processedApps);
+                   sendBroadcast(refreshIntent);
+                   
                    Intent intent = new Intent(this, MainActivity.class);
                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                    startActivity(intent);
