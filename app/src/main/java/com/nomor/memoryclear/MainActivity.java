@@ -60,6 +60,18 @@ public class MainActivity extends AppCompatActivity {
     private boolean isAnimating = false;
     private ErrorLogger errorLogger;
     
+    // Permission setup tracking
+    private enum PermissionType {
+        USAGE_STATS, ACCESSIBILITY, OVERLAY
+    }
+    
+    private int currentPermissionIndex = 0;
+    private PermissionType[] permissionSequence = {
+        PermissionType.USAGE_STATS,
+        PermissionType.ACCESSIBILITY, 
+        PermissionType.OVERLAY
+    };
+    
     // Broadcast receiver for force stop completion
     private android.content.BroadcastReceiver forceStopCompletionReceiver = new android.content.BroadcastReceiver() {
         @Override
@@ -119,10 +131,13 @@ public class MainActivity extends AppCompatActivity {
                 registerReceiver(forceStopCompletionReceiver, filter);
             }
             
-            // Show first launch tutorial if needed
+            // Show first launch tutorial if needed OR check for missing permissions
             if (AppPreferences.isFirstLaunch()) {
                 showFirstLaunchDialog();
                 AppPreferences.setFirstLaunch(false);
+            } else if (!AppPreferences.areAllCriticalPermissionsGranted()) {
+                // If not first launch but still missing permissions, show permission setup
+                showMissingPermissionsDialog();
             }
             
             errorLogger.logInfo(TAG, "MainActivity onCreate completed successfully");
@@ -1121,11 +1136,281 @@ public class MainActivity extends AppCompatActivity {
                           "• Force stop running apps\n" +
                           "• Whitelist important apps\n" +
                           "• Schedule automatic cleanup\n" +
-                          "• Floating dock for quick access\n\n" +
-                          "Grant the required permissions to get started.")
+                          "• Floating dock for quick access\n" +
+                          "• Premium speed functionality\n\n" +
+                          "For optimal performance, this app requires several permissions. Let's set them up now!")
                .setPositiveButton("Get Started", (dialog, which) -> {
                    dialog.dismiss();
-                   checkPermissionsAndSetup();
+                   startComprehensivePermissionSetup();
+               })
+               .setCancelable(false)
+               .show();
+    }
+    
+    private void showMissingPermissionsDialog() {
+        int grantedCount = AppPreferences.getGrantedPermissionsCount();
+        int totalCount = 3; // Total critical permissions
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle("⚠️ Missing Permissions")
+               .setMessage("For optimal performance, No More Apps PRO needs additional permissions.\n\n" +
+                          "Current Status: " + grantedCount + "/" + totalCount + " permissions granted\n\n" +
+                          "Missing permissions may limit app functionality. Would you like to complete the setup now?")
+               .setPositiveButton("Complete Setup", (dialog, which) -> {
+                   dialog.dismiss();
+                   startComprehensivePermissionSetup();
+               })
+               .setNegativeButton("Later", (dialog, which) -> {
+                   dialog.dismiss();
+                   Toast.makeText(this, "You can complete permission setup anytime from Settings", Toast.LENGTH_LONG).show();
+               })
+               .show();
+    }
+    
+    private void startComprehensivePermissionSetup() {
+        currentPermissionIndex = 0;
+        errorLogger.logInfo(TAG, "Starting comprehensive permission setup");
+        
+        // Update stored permission statuses first
+        updatePermissionStatuses();
+        
+        // Start the permission sequence
+        showNextPermissionDialog();
+    }
+    
+    private void updatePermissionStatuses() {
+        // Update stored permission statuses based on current system state
+        AppPreferences.setUsageStatsGranted(PermissionHelper.hasUsageStatsPermission(this));
+        AppPreferences.setAccessibilityGranted(PermissionHelper.hasAccessibilityPermission(this));
+        AppPreferences.setOverlayGranted(PermissionHelper.hasOverlayPermission(this));
+        
+        errorLogger.logInfo(TAG, "Permission statuses updated - " +
+            "Usage: " + AppPreferences.isUsageStatsGranted() + 
+            ", Accessibility: " + AppPreferences.isAccessibilityGranted() + 
+            ", Overlay: " + AppPreferences.isOverlayGranted());
+    }
+    
+    private void showNextPermissionDialog() {
+        // Skip already granted permissions
+        while (currentPermissionIndex < permissionSequence.length && isCurrentPermissionGranted()) {
+            currentPermissionIndex++;
+        }
+        
+        if (currentPermissionIndex >= permissionSequence.length) {
+            // All permissions completed
+            completePermissionSetup();
+            return;
+        }
+        
+        PermissionType currentPermission = permissionSequence[currentPermissionIndex];
+        showPermissionRequestDialog(currentPermission);
+    }
+    
+    private boolean isCurrentPermissionGranted() {
+        PermissionType currentPermission = permissionSequence[currentPermissionIndex];
+        switch (currentPermission) {
+            case USAGE_STATS:
+                return PermissionHelper.hasUsageStatsPermission(this);
+            case ACCESSIBILITY:
+                return PermissionHelper.hasAccessibilityPermission(this);
+            case OVERLAY:
+                return PermissionHelper.hasOverlayPermission(this);
+            default:
+                return false;
+        }
+    }
+    
+    private void showPermissionRequestDialog(PermissionType permissionType) {
+        String title, message, benefits;
+        Runnable grantAction;
+        
+        switch (permissionType) {
+            case USAGE_STATS:
+                title = "📊 Usage Stats Permission";
+                message = "Required to detect which apps are currently running and consuming memory.";
+                benefits = "✅ See real-time running app count\n" +
+                          "✅ Identify memory-hungry apps\n" +
+                          "✅ More accurate app detection\n" +
+                          "✅ Better performance monitoring";
+                grantAction = () -> PermissionHelper.requestUsageStatsPermission(this);
+                break;
+                
+            case ACCESSIBILITY:
+                title = "♿ Accessibility Permission";
+                message = "Required to automatically force stop apps without manual intervention.";
+                benefits = "✅ Automatic force stopping\n" +
+                          "✅ Works in background\n" +
+                          "✅ Premium speed functionality\n" +
+                          "✅ Scheduled cleanup";
+                grantAction = () -> PermissionHelper.requestAccessibilityPermission(this);
+                break;
+                
+            case OVERLAY:
+                title = "📱 Display Over Apps Permission";
+                message = "Required for floating dock and overlay notifications.";
+                benefits = "✅ Floating dock for quick access\n" +
+                          "✅ Cleanup notifications\n" +
+                          "✅ Quick force stop shortcuts\n" +
+                          "✅ Better user experience";
+                grantAction = () -> PermissionHelper.requestOverlayPermission(this);
+                break;
+                
+            default:
+                errorLogger.logError(TAG, "Unknown permission type: " + permissionType, null);
+                moveToNextPermission();
+                return;
+        }
+        
+        int currentStep = currentPermissionIndex + 1;
+        int totalSteps = permissionSequence.length;
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle(title + " (" + currentStep + "/" + totalSteps + ")")
+               .setMessage(message + "\n\n" + benefits + "\n\n" +
+                          "⚠️ This permission is essential for optimal app performance.")
+               .setPositiveButton("Grant Permission", (dialog, which) -> {
+                   dialog.dismiss();
+                   try {
+                       grantAction.run();
+                       errorLogger.logInfo(TAG, "Permission request initiated: " + permissionType.name());
+                       
+                       // Wait a moment then check and continue
+                       mainHandler.postDelayed(() -> {
+                           updatePermissionStatuses();
+                           moveToNextPermission();
+                       }, 2000);
+                   } catch (Exception e) {
+                       errorLogger.logError(TAG, "Error requesting permission: " + permissionType.name(), e);
+                       moveToNextPermission();
+                   }
+               })
+               .setNegativeButton("Skip for Now", (dialog, which) -> {
+                   dialog.dismiss();
+                   errorLogger.logInfo(TAG, "Permission skipped: " + permissionType.name());
+                   Toast.makeText(this, "You can grant this permission later from Settings", Toast.LENGTH_LONG).show();
+                   moveToNextPermission();
+               })
+               .setNeutralButton("Why Needed?", (dialog, which) -> {
+                   showPermissionDetailsDialog(permissionType, title, message, benefits);
+               })
+               .setCancelable(false)
+               .show();
+    }
+    
+    private void showPermissionDetailsDialog(PermissionType permissionType, String title, String message, String benefits) {
+        String detailedInfo = getDetailedPermissionInfo(permissionType);
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle("Why " + title + "?")
+               .setMessage(detailedInfo)
+               .setPositiveButton("Grant Now", (dialog, which) -> {
+                   dialog.dismiss();
+                   showPermissionRequestDialog(permissionType); // Show the main dialog again
+               })
+               .setNegativeButton("Back", (dialog, which) -> {
+                   dialog.dismiss();
+                   showPermissionRequestDialog(permissionType); // Show the main dialog again
+               })
+               .show();
+    }
+    
+    private String getDetailedPermissionInfo(PermissionType permissionType) {
+        switch (permissionType) {
+            case USAGE_STATS:
+                return "📊 Usage Stats Permission Details:\n\n" +
+                       "🔍 What it does:\n" +
+                       "• Monitors which apps are actively running\n" +
+                       "• Tracks memory usage patterns\n" +
+                       "• Provides real-time app activity data\n\n" +
+                       "🔒 Privacy & Security:\n" +
+                       "• Only monitors app usage, not content\n" +
+                       "• No personal data is accessed\n" +
+                       "• Used solely for memory management\n\n" +
+                       "⚡ Performance Benefits:\n" +
+                       "• 3-5x faster app detection\n" +
+                       "• More accurate running app count\n" +
+                       "• Better battery optimization";
+                       
+            case ACCESSIBILITY:
+                return "♿ Accessibility Permission Details:\n\n" +
+                       "🔍 What it does:\n" +
+                       "• Automatically navigates to app settings\n" +
+                       "• Clicks force stop buttons automatically\n" +
+                       "• Works without manual intervention\n\n" +
+                       "🔒 Privacy & Security:\n" +
+                       "• Only used for force stopping apps\n" +
+                       "• No content or data is accessed\n" +
+                       "• Works only within settings screens\n\n" +
+                       "⚡ Performance Benefits:\n" +
+                       "• Fully automated force stopping\n" +
+                       "• Premium speed functionality\n" +
+                       "• Background cleanup capability";
+                       
+            case OVERLAY:
+                return "📱 Display Over Apps Details:\n\n" +
+                       "🔍 What it does:\n" +
+                       "• Shows floating dock over other apps\n" +
+                       "• Displays cleanup notifications\n" +
+                       "• Provides quick access shortcuts\n\n" +
+                       "🔒 Privacy & Security:\n" +
+                       "• Only shows app's own interface\n" +
+                       "• No access to other app content\n" +
+                       "• Used only for convenience features\n\n" +
+                       "⚡ User Experience Benefits:\n" +
+                       "• Quick access from anywhere\n" +
+                       "• Seamless app integration\n" +
+                       "• Enhanced productivity";
+                       
+            default:
+                return "This permission helps No More Apps PRO provide better functionality and user experience.";
+        }
+    }
+    
+    private void moveToNextPermission() {
+        currentPermissionIndex++;
+        showNextPermissionDialog();
+    }
+    
+    private void completePermissionSetup() {
+        updatePermissionStatuses();
+        AppPreferences.setPermissionsSetupCompleted(true);
+        
+        int grantedCount = AppPreferences.getGrantedPermissionsCount();
+        int totalCount = permissionSequence.length;
+        
+        String completionTitle, completionMessage;
+        
+        if (grantedCount == totalCount) {
+            completionTitle = "🎉 Setup Complete!";
+            completionMessage = "Excellent! All permissions have been granted.\n\n" +
+                               "No More Apps PRO is now ready to provide optimal performance:\n" +
+                               "✅ Real-time running app detection\n" +
+                               "✅ Automatic force stopping\n" +
+                               "✅ Floating dock access\n" +
+                               "✅ Premium speed functionality\n\n" +
+                               "Enjoy the full power of No More Apps PRO!";
+        } else {
+            completionTitle = "⚠️ Partial Setup Complete";
+            completionMessage = "Setup completed with " + grantedCount + "/" + totalCount + " permissions granted.\n\n" +
+                               "Some features may be limited without all permissions:\n" +
+                               (AppPreferences.isUsageStatsGranted() ? "✅" : "❌") + " Running app detection\n" +
+                               (AppPreferences.isAccessibilityGranted() ? "✅" : "❌") + " Automatic force stopping\n" +
+                               (AppPreferences.isOverlayGranted() ? "✅" : "❌") + " Floating dock\n\n" +
+                               "You can grant missing permissions anytime from Settings.";
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle(completionTitle)
+               .setMessage(completionMessage)
+               .setPositiveButton("Start Using App", (dialog, which) -> {
+                   dialog.dismiss();
+                   updateRunningAppsCount(true);
+                   updatePremiumButtonUI();
+                   errorLogger.logInfo(TAG, "Permission setup completed - " + grantedCount + "/" + totalCount + " granted");
+                   
+                   if (grantedCount < totalCount) {
+                       Toast.makeText(this, "Tip: Enable missing permissions for full functionality", Toast.LENGTH_LONG).show();
+                   }
                })
                .setCancelable(false)
                .show();
@@ -1135,6 +1420,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         try {
+            // Update permission statuses when resuming (user might have granted permissions)
+            updatePermissionStatuses();
+            
             // Use force refresh when resuming to ensure accurate count after potential force stops
             updateRunningAppsCount(true);
             updatePremiumButtonUI(); // Check premium status

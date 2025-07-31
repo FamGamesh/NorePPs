@@ -15,6 +15,12 @@ public class AppPreferences {
     private static final String KEY_PREMIUM_ACTIVE = "premium_active";
     private static final String KEY_PREMIUM_EXPIRY = "premium_expiry_time";
     
+    // Permission tracking keys
+    private static final String KEY_USAGE_STATS_GRANTED = "usage_stats_granted";
+    private static final String KEY_ACCESSIBILITY_GRANTED = "accessibility_granted";  
+    private static final String KEY_OVERLAY_GRANTED = "overlay_granted";
+    private static final String KEY_PERMISSIONS_SETUP_COMPLETED = "permissions_setup_completed";
+    
     private static SharedPreferences sPrefs;
     
     public static void init(Context context) {
@@ -102,5 +108,56 @@ public class AppPreferences {
     
     public static long getPremiumExpiryTime() {
         return sPrefs.getLong(KEY_PREMIUM_EXPIRY, 0);
+    }
+    
+    // Permission tracking methods
+    public static boolean isUsageStatsGranted() {
+        return sPrefs.getBoolean(KEY_USAGE_STATS_GRANTED, false);
+    }
+    
+    public static void setUsageStatsGranted(boolean granted) {
+        sPrefs.edit().putBoolean(KEY_USAGE_STATS_GRANTED, granted).apply();
+    }
+    
+    public static boolean isAccessibilityGranted() {
+        return sPrefs.getBoolean(KEY_ACCESSIBILITY_GRANTED, false);
+    }
+    
+    public static void setAccessibilityGranted(boolean granted) {
+        sPrefs.edit().putBoolean(KEY_ACCESSIBILITY_GRANTED, granted).apply();
+    }
+    
+    public static boolean isOverlayGranted() {
+        return sPrefs.getBoolean(KEY_OVERLAY_GRANTED, false);
+    }
+    
+    public static void setOverlayGranted(boolean granted) {
+        sPrefs.edit().putBoolean(KEY_OVERLAY_GRANTED, granted).apply();
+    }
+    
+    public static boolean isPermissionsSetupCompleted() {
+        return sPrefs.getBoolean(KEY_PERMISSIONS_SETUP_COMPLETED, false);
+    }
+    
+    public static void setPermissionsSetupCompleted(boolean completed) {
+        sPrefs.edit().putBoolean(KEY_PERMISSIONS_SETUP_COMPLETED, completed).apply();
+    }
+    
+    /**
+     * Check if all critical permissions are granted
+     */
+    public static boolean areAllCriticalPermissionsGranted() {
+        return isUsageStatsGranted() && isAccessibilityGranted() && isOverlayGranted();
+    }
+    
+    /**
+     * Get count of granted permissions
+     */
+    public static int getGrantedPermissionsCount() {
+        int count = 0;
+        if (isUsageStatsGranted()) count++;
+        if (isAccessibilityGranted()) count++;
+        if (isOverlayGranted()) count++;
+        return count;
     }
 }
